@@ -8,12 +8,16 @@
  *   - RelicDisplay (active relics)
  *   - HUD (HP, combo, turn info, enemy intent, game log)
  *
+ * When invoked from the map (encounterId param is set), loads the
+ * encounter from RunContext. Otherwise falls back to a standalone
+ * practice battle.
+ *
  * Phase flow:
  *   player_select_card → player_select_piece → player_select_destination
  *   → enemy_turn (auto) → player_select_card → ...
  */
 
-import React, { useReducer, useEffect, useRef, useCallback } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,16 +26,19 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
-  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import {
   battleReducer,
   createInitialBattleState,
+  createBattleStateFromEncounter,
   BattleAction,
 } from '@/src/engine/battle';
 import { Position } from '@/src/engine/types';
+import { getEncounter, rollGold } from '@/src/engine/encounters';
+import { CLASS_DEFINITIONS } from '@/src/engine/run';
+import { useRun } from '@/src/context/RunContext';
 
 import BoardRenderer from '@/components/game/BoardRenderer';
 import CardHand from '@/components/game/CardHand';
@@ -51,7 +58,47 @@ const PHASE_LABEL: Record<string, string> = {
 
 export default function BattleScreen() {
   const router = useRouter();
-  const [state, dispatch] = useReducer(battleReducer, undefined, createInitialBattleState);
+  const params = useLocalSearchParams<{ encounterId?: string }>();
+  const { runState, dispatch: runDispatch } = useRun();
+
+  // ── Determine initial battle state ────────────────────────────────────────
+
+  const { initialState, encounter, goldEarned } = useMemo(() => {
+    const encId = params.encounterId;
+
+    if (encId && runState) {
+      const enc = getEncounter(encId);
+      if (enc) {
+        const classDef = CLASS_DEFINITIONS.find(c => c.id === runState.playerClass);
+        if (classDef) {
+          return {
+            encounter: enc,
+            goldEarned: rollGold(enc),
+            initialState: createBattleStateFromEncounter(
+              runState.hp,
+              runState.maxHp,
+              runState.deck,
+              runState.relicIds,
+              runState.pieceUpgrades,
+              classDef.startingPlayerPieces,
+              enc.enemyPieces,
+              enc.script,
+              enc.name,
+            ),
+          };
+        }
+      }
+    }
+
+    // Fallback: standalone practice battle (no run tracking)
+    return {
+      encounter: null,
+      goldEarned: 0,
+      initialState: createInitialBattleState(),
+    };
+  }, []); // Only computed once on mount
+
+  const [state, dispatch] = useReducer(battleReducer, initialState);
   const logScrollRef = useRef<ScrollView>(null);
 
   // ── Auto-resolve enemy turn after a short delay ───────────────────────────
@@ -68,13 +115,32 @@ export default function BattleScreen() {
     logScrollRef.current?.scrollToEnd({ animated: true });
   }, [state.log.length]);
 
+  // ── Sync battle outcome to run state (once) ───────────────────────────────
+  const outcomeHandled = useRef(false);
+
+  useEffect(() => {
+    if (state.phase !== 'battle_over' || outcomeHandled.current) return;
+    if (!encounter) return; // standalone mode — no run tracking
+
+    outcomeHandled.current = true;
+
+    if (state.winner === 'player') {
+      runDispatch({
+        type: 'COMPLETE_NODE',
+        finalHp: state.playerHp,
+        goldEarned,
+      });
+    } else {
+      runDispatch({ type: 'RUN_LOST', finalHp: 0 });
+    }
+  }, [state.phase, state.winner]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSquarePress = useCallback((position: Position) => {
-    const { phase, selectedPieceId } = state;
+    const { phase } = state;
 
     if (phase === 'player_select_piece') {
-      // Find a piece on this square
       const piece = state.pieces.find(
         p => p.team === 'player' &&
              p.position.row === position.row &&
@@ -98,7 +164,24 @@ export default function BattleScreen() {
 
   const handleRestart = useCallback(() => {
     dispatch({ type: 'RESTART' });
+    outcomeHandled.current = false;
   }, []);
+
+  function handleVictoryContinue() {
+    if (encounter) {
+      router.replace(`/reward?goldEarned=${goldEarned}&finalHp=${state.playerHp}`);
+    } else {
+      handleRestart();
+    }
+  }
+
+  function handleDefeatContinue() {
+    if (encounter) {
+      router.replace('/');
+    } else {
+      router.back();
+    }
+  }
 
   // ── Derived display values ────────────────────────────────────────────────
 
@@ -112,11 +195,10 @@ export default function BattleScreen() {
     '#F44336';
 
   const phaseLabel = PHASE_LABEL[state.phase] ?? state.phase;
-  const isEnemyTurn = state.phase === 'enemy_turn';
   const isBattleOver = state.phase === 'battle_over';
 
-  const playerEnemyCount = state.pieces.filter(p => p.team === 'enemy').length;
-  const playerPieceCount = state.pieces.filter(p => p.team === 'player').length;
+  const enemyCount  = state.pieces.filter(p => p.team === 'enemy').length;
+  const playerCount = state.pieces.filter(p => p.team === 'player').length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -126,22 +208,30 @@ export default function BattleScreen() {
 
       {/* ── Top HUD ─────────────────────────────────────────────────────── */}
       <View style={styles.hud}>
-        {/* Back button */}
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>← Menu</Text>
+          <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
 
         <View style={styles.hudCenter}>
+          {encounter && (
+            <Text style={styles.encounterName}>{encounter.name}</Text>
+          )}
           <Text style={styles.turnText}>Turn {state.turn}</Text>
           <Text style={styles.phaseText}>{phaseLabel}</Text>
         </View>
 
-        {/* Piece counts */}
         <View style={styles.pieceCounts}>
-          <Text style={styles.countText}>♙×{playerPieceCount}</Text>
-          <Text style={styles.countTextEnemy}>♟×{playerEnemyCount}</Text>
+          <Text style={styles.countText}>♙×{playerCount}</Text>
+          <Text style={styles.countTextEnemy}>♟×{enemyCount}</Text>
         </View>
       </View>
+
+      {/* ── Boss Rule Banner ─────────────────────────────────────────────── */}
+      {encounter?.bossRule && (
+        <View style={styles.bossRuleBanner}>
+          <Text style={styles.bossRuleText}>👑 {encounter.bossRule}</Text>
+        </View>
+      )}
 
       {/* ── HP Bar ──────────────────────────────────────────────────────── */}
       <View style={styles.hpRow}>
@@ -200,15 +290,30 @@ export default function BattleScreen() {
           </Text>
           <Text style={styles.overlaySubtitle}>
             {state.winner === 'player'
-              ? `You earned ${state.gold} gold!`
+              ? `+${goldEarned} gold earned!`
               : 'Your king has fallen.'}
           </Text>
-          <TouchableOpacity style={styles.restartBtn} onPress={handleRestart}>
-            <Text style={styles.restartBtnText}>Play Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuBtn} onPress={() => router.back()}>
-            <Text style={styles.menuBtnText}>Main Menu</Text>
-          </TouchableOpacity>
+
+          {state.winner === 'player' ? (
+            <TouchableOpacity style={styles.continueBtn} onPress={handleVictoryContinue}>
+              <Text style={styles.continueBtnText}>
+                {encounter ? 'Continue →' : 'Play Again'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              {!encounter && (
+                <TouchableOpacity style={styles.continueBtn} onPress={handleRestart}>
+                  <Text style={styles.continueBtnText}>Try Again</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.menuBtn} onPress={handleDefeatContinue}>
+                <Text style={styles.menuBtnText}>
+                  {encounter ? '☠ Run Over — Return to Menu' : 'Main Menu'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -254,6 +359,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  encounterName: {
+    color: '#7a7aff',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   turnText: {
     color: '#aaa',
     fontSize: 11,
@@ -276,6 +388,21 @@ const styles = StyleSheet.create({
   countTextEnemy: {
     color: '#cc5555',
     fontSize: 12,
+  },
+
+  // Boss rule banner
+  bossRuleBanner: {
+    backgroundColor: '#2a0a0a',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#5a0000',
+  },
+  bossRuleText: {
+    color: '#e74c3c',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // HP bar
@@ -356,7 +483,7 @@ const styles = StyleSheet.create({
   // Battle over overlay
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
@@ -373,14 +500,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
   },
-  restartBtn: {
+  continueBtn: {
     backgroundColor: '#FFD700',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 10,
     marginTop: 8,
   },
-  restartBtnText: {
+  continueBtnText: {
     color: '#111',
     fontSize: 18,
     fontWeight: '700',

@@ -35,7 +35,7 @@ export default function MainMenuScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => router.push('/battle')}
+            onPress={() => router.push('/class-select')}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryBtnText}>⚔ New Run</Text>
@@ -50,19 +50,19 @@ export default function MainMenuScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Phase 1 info */}
+        {/* Phase 2 info */}
         <View style={styles.versionBadge}>
-          <Text style={styles.versionText}>Phase 1 — Core Engine</Text>
-          <Text style={styles.versionSubtext}>One playable battle end-to-end</Text>
+          <Text style={styles.versionText}>Phase 2 — Run Structure</Text>
+          <Text style={styles.versionSubtext}>A complete run from start to death</Text>
         </View>
 
         {/* Legend */}
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>How to play</Text>
-          <Text style={styles.legendItem}>1. Select a card from your hand.</Text>
-          <Text style={styles.legendItem}>2. Tap one of your matching pieces.</Text>
-          <Text style={styles.legendItem}>3. Tap a highlighted square to move.</Text>
-          <Text style={styles.legendItem}>4. Chain captures to build your combo!</Text>
+          <Text style={styles.legendItem}>1. Choose your class and starting loadout.</Text>
+          <Text style={styles.legendItem}>2. Navigate the map — fight, shop, rest.</Text>
+          <Text style={styles.legendItem}>3. Build your deck with cards and relics.</Text>
+          <Text style={styles.legendItem}>4. Chain captures to power your combos!</Text>
         </View>
 
       </View>

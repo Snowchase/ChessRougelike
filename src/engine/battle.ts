@@ -21,11 +21,12 @@ import {
   Team,
   RelicInstance,
   MoveCard,
+  EnemyScript,
 } from './types';
 import { classifyMoves, pieceAt } from './moves';
 import { buildStartingDeck, drawCards, shuffleDeck } from './cards';
 import { dispatchEvent, EVENTS } from './events';
-import { computeEnemyMove, GUARD_SCRIPT, getNextIntent } from './enemy-ai';
+import { computeEnemyMove, GUARD_SCRIPT } from './enemy-ai';
 
 // ─── Opening Position ─────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export function createInitialBattleState(): BattleState {
     phase: 'player_select_card',
     turn: 1,
     enemyScriptStep: 0,
+    enemyScript: GUARD_SCRIPT,
     playerHp: 20,
     maxPlayerHp: 20,
     comboCount: 0,
@@ -99,6 +101,71 @@ export function createInitialBattleState(): BattleState {
     gold: 0,
     log: ['Battle begins! Draw your card and move a piece.'],
     enemyIntent: GUARD_SCRIPT.steps[0].description,
+  };
+}
+
+// ─── Run-Based Battle Factory ─────────────────────────────────────────────────
+
+/**
+ * Build a BattleState from a RunState + Encounter.
+ * Imports are done lazily (via function params) to avoid circular deps.
+ */
+export function createBattleStateFromEncounter(
+  runHp: number,
+  runMaxHp: number,
+  runDeck: MoveCard[],
+  runRelicIds: string[],
+  runPieceUpgrades: { pieceType: Piece['type']; upgrade: string }[],
+  playerPieceLayout: { idSuffix: string; type: Piece['type']; row: number; col: number }[],
+  enemyPieces: Piece[],
+  script: EnemyScript,
+  encounterName: string,
+): BattleState {
+  // Build player pieces, applying any persisted upgrades
+  const playerPieces: Piece[] = playerPieceLayout.map(sp => {
+    const upgradeRecord = runPieceUpgrades.find(u => u.pieceType === sp.type);
+    return {
+      id: `p_${sp.idSuffix}`,
+      type: sp.type,
+      team: 'player',
+      position: { row: sp.row, col: sp.col },
+      upgrades: upgradeRecord ? [upgradeRecord.upgrade as any] : [],
+      poisoned: false,
+      hasMoved: false,
+    };
+  });
+
+  const allPieces = [...playerPieces, ...enemyPieces];
+
+  // Shuffle run deck and draw opening hand
+  const shuffled = shuffleDeck(runDeck);
+  const { drawn: hand, newDeck } = drawCards(shuffled, [], 4);
+
+  // Convert relic IDs to RelicInstance format
+  const relics: RelicInstance[] = runRelicIds.map(id => ({ relicId: id, counter: 0 }));
+
+  return {
+    pieces: allPieces,
+    playerHand: hand,
+    playerDeck: newDeck,
+    playerDiscard: [],
+    relics,
+    phase: 'player_select_card',
+    turn: 1,
+    enemyScriptStep: 0,
+    enemyScript: script,
+    playerHp: runHp,
+    maxPlayerHp: runMaxHp,
+    comboCount: 0,
+    consecutiveCaptures: 0,
+    selectedCardId: null,
+    selectedPieceId: null,
+    highlightedSquares: [],
+    captureSquares: [],
+    winner: null,
+    gold: 0,
+    log: [`Battle: ${encounterName}! Draw your card and move a piece.`],
+    enemyIntent: script.steps[0].description,
   };
 }
 
@@ -252,7 +319,7 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   // Emit onTurnStart for enemy
   s = dispatchEvent(s, { type: EVENTS.ON_TURN_START });
 
-  const moveResult = computeEnemyMove(s, GUARD_SCRIPT);
+  const moveResult = computeEnemyMove(s, s.enemyScript);
 
   if (!moveResult) {
     // No enemy moves available — player wins
@@ -304,8 +371,8 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   const { drawn, newDeck, newDiscard } = drawCards(s.playerDeck, s.playerDiscard, toDraw);
 
   // Advance script step and update intent
-  const nextScriptStep = (s.enemyScriptStep + 1) % GUARD_SCRIPT.steps.length;
-  const nextIntent = GUARD_SCRIPT.steps[nextScriptStep].description;
+  const nextScriptStep = (s.enemyScriptStep + 1) % s.enemyScript.steps.length;
+  const nextIntent = s.enemyScript.steps[nextScriptStep].description;
 
   return {
     ...s,
