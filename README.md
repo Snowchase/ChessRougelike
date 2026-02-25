@@ -170,17 +170,112 @@ SplashScreen
 
 -----
 
-## 🔨 Build Order
+## 🗺️ Development Roadmap
 
-Get the core fun loop working before building around it. The **capture-chain + relic event system** is the game — everything else is scaffolding.
+The core insight: the **capture-chain + relic event system** is the game — everything else is scaffolding around it. Build in dependency order; validate fun before adding content.
 
-- [ ] **1. Board Renderer** — 8×8 grid, place and move pieces
-- [ ] **2. Legal Move Calculator** — pure chess logic per piece type
-- [ ] **3. Turn Loop** — draw cards → play card → enemy turn
-- [ ] **4. Capture Chain Detection** — for combo triggers
-- [ ] **5. Event Dispatcher + 3–4 Relics** — prove the synergy loop is fun
-- [ ] **6. Map / Run Structure** — connect battles into a full run
-- [ ] **7. Reward & Shop Screens** — card drafting and relic acquisition
+> Status: `[ ]` Not Started &nbsp;|&nbsp; `[~]` In Progress &nbsp;|&nbsp; `[x]` Complete
+
+-----
+
+### Phase 1 — Core Engine `(Goal: one playable battle end-to-end)`
+
+**Chess Foundation**
+- [ ] **Board Renderer** — 8×8 grid component, piece placement, square highlighting
+- [ ] **Legal Move Calculator** — pure JS move generation per piece type (Pawn, Knight, Bishop, Rook, Queen, King)
+- [ ] **Piece State Model** — position, type, team, upgrades as defined in Core Data Models
+
+**Battle Loop**
+- [ ] **Card Hand System** — draw 3–5 Move Cards per turn, play one
+- [ ] **Turn Loop** — player turn → resolve card → enemy turn → repeat
+- [ ] **Enemy AI (Scripted)** — behavior scripts with telegraphed intents
+
+**Capture & Combo System**
+- [ ] **Capture Detection** — identify legal captures, resolve piece removal
+- [ ] **Capture Chain Tracker** — consecutive capture counter, combo multiplier state
+- [ ] **Event Dispatcher** — emit `onCapture`, `onCardPlay`, `onLand`, `onTurnStart`, `onTurnEnd`, `onPieceDeath`, `onBattleWin`
+
+**Synergy Proof-of-Concept**
+- [ ] **Relic Engine** — hook relics into event stream, apply effects as pure functions
+- [ ] **3–4 Relics Implemented** — Blood Pawn, Zwischenzug, Fork, Poisoned Bishop (enough to validate the synergy loop)
+
+-----
+
+### Phase 2 — Run Structure `(Goal: a complete run from start to death)`
+
+**Navigation & Screens**
+- [ ] **Screen Navigation** — Expo Router wiring: MainMenu → ClassSelect → MapScreen → BattleScreen
+- [ ] **Splash + Main Menu** — entry point, New Run button
+- [ ] **Class Select Screen** — starting piece loadout choice
+
+**Map & Progression**
+- [ ] **Map Generator** — branching path with Normal Fight, Elite Fight, Shop, Rest, Event nodes
+- [ ] **Act Structure** — multi-act run with boss nodes terminating each act
+- [ ] **Run State Model** — persistent state across nodes (HP, gold, deck, relics, map position)
+
+**Reward & Economy**
+- [ ] **Reward Screen** — post-battle card draft (pick 1 of 3)
+- [ ] **Shop Screen** — buy Move Cards, Relics, Piece Upgrades with gold
+- [ ] **Piece Upgrade System** — post-fight upgrade selection (pick 1 of 3 random upgrades)
+
+**Content: Battles**
+- [ ] **Normal Enemy Sets** — 2–3 scripted enemy formations for Act 1
+- [ ] **Elite Enemy Sets** — 1–2 harder formations with unique rules
+- [ ] **Boss Encounter #1** — unique board rules for Act 1 boss
+
+-----
+
+### Phase 3 — Content & Depth `(Goal: multiple viable build strategies)`
+
+**Card Expansion**
+- [ ] **Full Move Card Set** — Advance, Charge, Sweep, Castle, Gambit + uncommon/rare variants
+- [ ] **Card Rarity System** — common / uncommon / rare distribution in draft pool
+- [ ] **Card Synergy Tags** — metadata enabling relic interactions (e.g., "CAPTURE", "DIAGONAL")
+
+**Relic Expansion**
+- [ ] **10+ Relics Implemented** — covering multiple trigger types and piece affinities
+- [ ] **Relic Rarity Tiers** — shop and reward pool balancing
+- [ ] **Cross-Relic Interactions** — test and document known combos
+
+**Piece & Upgrade Expansion**
+- [ ] **Full Upgrade Tree** — Promoted Pawn, Nightmare Knight, Siege Tower, Dark Bishop + variants
+- [ ] **King Mechanics** — loss condition trigger if King is captured
+
+**Mystery Events**
+- [ ] **Event System Implementation** — branching narrative choices with stat/deck consequences
+- [ ] **5–8 Event Scripts** — varied risk/reward scenarios
+
+**Acts 2 & 3**
+- [ ] **Act 2 Enemy Sets + Boss**
+- [ ] **Act 3 Enemy Sets + Final Boss** — multi-phase final boss behavior
+
+**Run History**
+- [ ] **Run Summary Screen** — captures, relics, turns survived, cause of death
+- [ ] **Seed System** — reproducible runs for sharing
+
+-----
+
+### Phase 4 — Polish & Launch `(Goal: shippable on iOS/Android)`
+
+**UX & Feel**
+- [ ] **Animations** — piece movement, capture effects, combo counter pop
+- [ ] **Sound Design** — capture SFX, combo escalation, UI feedback
+- [ ] **Colorblind Mode** — square color alternatives, icon fallbacks
+
+**Balance**
+- [ ] **Playtesting Pass** — difficulty curve tuning across all 3 acts
+- [ ] **Card/Relic Balance Spreadsheet** — numeric tuning from playtest data
+- [ ] **Tutorial / Onboarding** — first-run guided battle
+
+**Technical**
+- [ ] **Performance Audit** — board rendering on low-end Android devices
+- [ ] **Persistent Storage** — run history, settings, unlocks (AsyncStorage or SQLite)
+- [ ] **Error Boundaries + Crash Reporting** — Sentry or equivalent
+
+**Distribution**
+- [ ] **App Store Assets** — icon, screenshots, store description
+- [ ] **TestFlight / Internal Track** — closed beta
+- [ ] **v1.0 Release** — App Store + Google Play
 
 -----
 
