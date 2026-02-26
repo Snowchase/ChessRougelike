@@ -126,7 +126,7 @@ export default function BattleScreen() {
 
     if (state.winner === 'player') {
       runDispatch({
-        type: 'COMPLETE_NODE',
+        type: 'COMPLETE_TILE',
         finalHp: state.playerHp,
         goldEarned,
       });

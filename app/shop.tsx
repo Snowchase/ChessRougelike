@@ -155,7 +155,7 @@ export default function ShopScreen() {
   }
 
   function handleLeave() {
-    dispatch({ type: 'COMPLETE_NODE', finalHp: hp, goldEarned: 0 });
+    dispatch({ type: 'COMPLETE_TILE', finalHp: hp, goldEarned: 0 });
     router.replace('/map-screen');
   }
 

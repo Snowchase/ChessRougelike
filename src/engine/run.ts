@@ -4,13 +4,13 @@
  * The RunState persists across all nodes in a run:
  *   - Player vitals (HP, gold)
  *   - Current deck and relics
- *   - Map position and progression
+ *   - Overworld position (navigating the 7×7 dungeon grid)
  *   - Piece upgrades earned mid-run
  */
 
 import { MoveCard, PieceType, UpgradeType } from './types';
 import { ALL_CARDS } from './cards';
-import { generateMap, MapNode } from './map';
+import { OverworldGrid, generateOverworld, revealAround, markVisited, GRID_SIZE } from './overworld';
 
 // ─── Player Classes ───────────────────────────────────────────────────────────
 
@@ -151,11 +151,14 @@ export interface RunState {
   maxHp: number;
   gold: number;
   deck: MoveCard[];
-  relicIds: string[];        // relic ids (synced from starting relics + acquired)
+  relicIds: string[];
   pieceUpgrades: PieceUpgradeRecord[];
-  map: MapNode[][];
-  currentRow: number;        // row of the node currently selected (-1 = not yet started)
-  currentCol: number;        // col of the node currently selected
+
+  // Overworld navigation
+  grid: OverworldGrid;
+  playerRow: number;
+  playerCol: number;
+
   act: number;
   runOver: boolean;
   victory: boolean;
@@ -165,8 +168,8 @@ export interface RunState {
 
 export type RunAction =
   | { type: 'START_RUN'; playerClass: PlayerClass }
-  | { type: 'SELECT_NODE'; row: number; col: number }
-  | { type: 'COMPLETE_NODE'; finalHp: number; goldEarned: number }
+  | { type: 'MOVE_TO'; row: number; col: number }
+  | { type: 'COMPLETE_TILE'; finalHp: number; goldEarned: number }
   | { type: 'RUN_LOST'; finalHp: number }
   | { type: 'ADD_CARD'; card: MoveCard }
   | { type: 'BUY_CARD'; card: MoveCard; cost: number }
@@ -182,7 +185,6 @@ function buildStartingDeckForClass(classDef: ClassDefinition): MoveCard[] {
 
   const pieceTypes = classDef.startingPlayerPieces.map(sp => sp.type);
 
-  // 2× common card for each unique piece type
   for (const type of pieceTypes) {
     const card = ALL_CARDS.find(c => c.pieceType === type && c.rarity === 'common');
     if (card && !seen.has(card.id)) {
@@ -192,7 +194,6 @@ function buildStartingDeckForClass(classDef: ClassDefinition): MoveCard[] {
     }
   }
 
-  // Add bonus cards from class definition
   for (const cardId of classDef.bonusCardIds) {
     const card = ALL_CARDS.find(c => c.id === cardId);
     if (card) {
@@ -208,7 +209,7 @@ function buildStartingDeckForClass(classDef: ClassDefinition): MoveCard[] {
 export function createInitialRunState(playerClass: PlayerClass): RunState {
   const classDef = CLASS_DEFINITIONS.find(c => c.id === playerClass)!;
   const deck = buildStartingDeckForClass(classDef);
-  const map = generateMap(1);
+  const grid = generateOverworld();
 
   return {
     playerClass,
@@ -218,9 +219,9 @@ export function createInitialRunState(playerClass: PlayerClass): RunState {
     deck,
     relicIds: [...classDef.startingRelicIds],
     pieceUpgrades: [],
-    map,
-    currentRow: -1,
-    currentCol: 0,
+    grid,
+    playerRow: 0,
+    playerCol: 0,
     act: 1,
     runOver: false,
     victory: false,
@@ -234,29 +235,26 @@ export function runReducer(state: RunState, action: RunAction): RunState {
     case 'START_RUN':
       return createInitialRunState(action.playerClass);
 
-    case 'SELECT_NODE':
-      return { ...state, currentRow: action.row, currentCol: action.col };
+    case 'MOVE_TO': {
+      const { row, col } = action;
+      // Move player, reveal fog around new position
+      const newGrid = revealAround(state.grid, row, col);
+      // Corridor tiles are complete on entry (no encounter)
+      const tileType = newGrid[row][col].type;
+      const completedGrid = (tileType === 'corridor' || tileType === 'start')
+        ? markVisited(newGrid, row, col)
+        : newGrid;
+      return { ...state, grid: completedGrid, playerRow: row, playerCol: col };
+    }
 
-    case 'COMPLETE_NODE': {
-      // Mark current node visited and make successors reachable
-      const newMap = state.map.map((mapRow, r) =>
-        mapRow.map((node, c) => {
-          if (r === state.currentRow && c === state.currentCol) {
-            return { ...node, visited: true };
-          }
-          // If this node is a successor of the current node, make it reachable
-          const currentNode = state.map[state.currentRow]?.[state.currentCol];
-          if (currentNode && currentNode.nextNodeIds.includes(node.id)) {
-            return { ...node, reachable: true };
-          }
-          return node;
-        }),
-      );
+    case 'COMPLETE_TILE': {
+      const { playerRow, playerCol } = state;
+      const newGrid = markVisited(state.grid, playerRow, playerCol);
       return {
         ...state,
         hp: Math.min(action.finalHp, state.maxHp),
         gold: state.gold + action.goldEarned,
-        map: newMap,
+        grid: newGrid,
       };
     }
 

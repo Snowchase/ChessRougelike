@@ -1,15 +1,16 @@
 /**
- * map-screen.tsx — Run Map
+ * map-screen.tsx — Overworld Dungeon Grid
  *
- * Displays the branching Slay the Spire-style map. The player taps
- * a reachable node to progress. Visited nodes are dimmed; future
- * nodes are locked.
+ * The player navigates a 7×7 dungeon tile-by-tile using 4-directional movement.
+ * Fog of war: only the start tile, the boss tile, and tiles adjacent to visited
+ * positions are revealed. Unrevealed tiles appear as dark fog squares.
  *
- * Node routing:
- *   fight / elite / boss → /battle?encounterId=xxx
- *   shop  → /shop
- *   rest  → inline heal modal
- *   event → inline placeholder modal
+ * Tile interactions:
+ *   Fight / Elite / Boss → navigate to /battle?encounterId=xxx
+ *   Shop                 → navigate to /shop
+ *   Rest                 → inline heal modal
+ *   Event                → inline placeholder modal
+ *   Corridor             → just walk through (auto-completed on entry)
  */
 
 import React, { useState } from 'react';
@@ -17,57 +18,93 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
   SafeAreaView,
   StatusBar,
   Modal,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useRun } from '@/src/context/RunContext';
-import { MapNode, NODE_ICONS, NODE_LABELS, NodeType } from '@/src/engine/map';
+import {
+  Tile,
+  TileType,
+  TILE_ICONS,
+  TILE_BG,
+  TILE_BORDER,
+  TILE_LABEL,
+  GRID_SIZE,
+  isAdjacent,
+  adjacentPositions,
+} from '@/src/engine/overworld';
 import { RELIC_DEFINITIONS } from '@/src/engine/relics';
 
-// ─── Node colours by type ─────────────────────────────────────────────────────
+// ─── Sizing ───────────────────────────────────────────────────────────────────
 
-const NODE_COLORS: Record<NodeType, string> = {
-  fight: '#c0392b',
-  elite: '#8e44ad',
-  shop:  '#d4a017',
-  rest:  '#1a7a4a',
-  event: '#2471a3',
-  boss:  '#b7000d',
-};
+const SCREEN_W = Dimensions.get('window').width;
+const TILE_SIZE = Math.floor((SCREEN_W - 32) / GRID_SIZE); // fit grid edge-to-edge with 16px padding each side
+const TILE_GAP = 3;
 
-// ─── Single map node button ───────────────────────────────────────────────────
+// ─── Tile colours ─────────────────────────────────────────────────────────────
 
-function NodeButton({
-  node,
-  isCurrent,
-  onPress,
-}: {
-  node: MapNode;
-  isCurrent: boolean;
+const FOG_BG     = '#070710';
+const PLAYER_BG  = '#1a3a6a';
+const PLAYER_BORDER = '#5a9aff';
+const REACHABLE_BORDER = '#FFD700';
+const VISITED_ALPHA = 0.55;
+
+// ─── Single tile ──────────────────────────────────────────────────────────────
+
+interface TileButtonProps {
+  tile: Tile;
+  isPlayer: boolean;
+  isReachable: boolean;
   onPress: () => void;
-}) {
-  const color = NODE_COLORS[node.type];
-  const opacity = node.visited ? 0.35 : node.reachable ? 1 : 0.25;
+}
+
+function TileButton({ tile, isPlayer, isReachable, onPress }: TileButtonProps) {
+  const { revealed, visited, type } = tile;
+
+  if (!revealed) {
+    // Fog — tap does nothing but show a dark square
+    return (
+      <View style={[styles.tile, { width: TILE_SIZE, height: TILE_SIZE, backgroundColor: FOG_BG, borderColor: '#111' }]} />
+    );
+  }
+
+  const bg     = isPlayer ? PLAYER_BG : TILE_BG[type];
+  const border = isPlayer ? PLAYER_BORDER : isReachable ? REACHABLE_BORDER : TILE_BORDER[type];
+  const label  = TILE_LABEL[type];
+  const icon   = type === 'corridor' ? '' : TILE_ICONS[type];
 
   return (
     <TouchableOpacity
       style={[
-        styles.node,
-        { borderColor: color, opacity },
-        isCurrent && styles.nodeActive,
-        node.type === 'boss' && styles.nodeBoss,
+        styles.tile,
+        {
+          width: TILE_SIZE,
+          height: TILE_SIZE,
+          backgroundColor: bg,
+          borderColor: border,
+          borderWidth: isPlayer || isReachable ? 2 : 1,
+          opacity: visited && !isPlayer ? VISITED_ALPHA : 1,
+        },
       ]}
       onPress={onPress}
-      disabled={!node.reachable || node.visited}
+      disabled={!isReachable && !isPlayer}
       activeOpacity={0.75}
     >
-      <Text style={styles.nodeIcon}>{NODE_ICONS[node.type]}</Text>
-      <Text style={[styles.nodeLabel, { color }]}>{NODE_LABELS[node.type]}</Text>
+      {isPlayer && (
+        <Text style={styles.playerIcon}>♚</Text>
+      )}
+      {!isPlayer && icon !== '' && (
+        <Text style={[styles.tileIcon, type === 'boss' && styles.bossIcon]}>{icon}</Text>
+      )}
+      {!isPlayer && label !== '' && (
+        <Text style={[styles.tileLabel, type === 'boss' && styles.bossLabel]}>{label}</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -75,37 +112,21 @@ function NodeButton({
 // ─── Rest Modal ───────────────────────────────────────────────────────────────
 
 function RestModal({
-  visible,
-  hp,
-  maxHp,
-  onHeal,
-  onLeave,
-}: {
-  visible: boolean;
-  hp: number;
-  maxHp: number;
-  onHeal: () => void;
-  onLeave: () => void;
-}) {
-  const healAmount = Math.floor(maxHp * 0.3);
+  visible, hp, maxHp, onHeal, onLeave,
+}: { visible: boolean; hp: number; maxHp: number; onHeal: () => void; onLeave: () => void }) {
+  const healAmt = Math.floor(maxHp * 0.3);
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.modalBg}>
         <View style={styles.modalBox}>
           <Text style={styles.modalTitle}>🔥 Rest Site</Text>
-          <Text style={styles.modalBody}>
-            You find a moment of peace to recuperate.
-          </Text>
-          <View style={styles.modalHpRow}>
-            <Text style={styles.modalHpText}>HP: {hp} / {maxHp}</Text>
-          </View>
+          <Text style={styles.modalBody}>You find a moment of peace to recuperate.</Text>
+          <Text style={styles.modalHp}>❤ {hp} / {maxHp}</Text>
           <TouchableOpacity style={styles.modalPrimary} onPress={onHeal}>
-            <Text style={styles.modalPrimaryText}>
-              Heal {healAmount} HP
-            </Text>
+            <Text style={styles.modalPrimaryText}>Heal +{healAmt} HP</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.modalSecondary} onPress={onLeave}>
-            <Text style={styles.modalSecondaryText}>Rest and Continue</Text>
+            <Text style={styles.modalSecondaryText}>Rest and Move On</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -122,14 +143,12 @@ function EventModal({ visible, onClose }: { visible: boolean; onClose: () => voi
         <View style={styles.modalBox}>
           <Text style={styles.modalTitle}>❓ Mystery Event</Text>
           <Text style={styles.modalBody}>
-            A hooded figure offers you a strange deal...{'\n\n'}
-            "I can grant you power — for a price."
+            A hooded figure steps from the shadows...{'\n\n'}
+            "I sense great power in you, traveller."
           </Text>
-          <Text style={styles.modalNote}>
-            (Full event system coming in Phase 3)
-          </Text>
+          <Text style={styles.modalNote}>(Full event system coming in Phase 3)</Text>
           <TouchableOpacity style={styles.modalPrimary} onPress={onClose}>
-            <Text style={styles.modalPrimaryText}>Decline and Move On</Text>
+            <Text style={styles.modalPrimaryText}>Move On</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -143,24 +162,38 @@ export default function MapScreen() {
   const router = useRouter();
   const { runState, dispatch } = useRun();
 
-  const [restModalVisible, setRestModalVisible] = useState(false);
+  const [restModalVisible,  setRestModalVisible]  = useState(false);
   const [eventModalVisible, setEventModalVisible] = useState(false);
-  const [pendingNode, setPendingNode] = useState<MapNode | null>(null);
 
   if (!runState) {
-    // Should not happen — navigate back
     router.replace('/');
     return null;
   }
 
-  function handleNodePress(node: MapNode) {
-    dispatch({ type: 'SELECT_NODE', row: node.row, col: node.col });
+  const { grid, playerRow, playerCol, hp, maxHp, gold, relicIds, act } = runState;
 
-    switch (node.type) {
+  // Compute which tiles the player can move to
+  const reachableSet = new Set<string>();
+  for (const [r, c] of adjacentPositions(playerRow, playerCol)) {
+    const tile = grid[r][c];
+    if (tile.revealed && !tile.visited) {
+      reachableSet.add(`${r},${c}`);
+    }
+  }
+
+  function handleTilePress(tile: Tile) {
+    if (!isAdjacent(playerRow, playerCol, tile.row, tile.col)) return;
+    if (!tile.revealed || tile.visited) return;
+
+    // Move player to the tile
+    dispatch({ type: 'MOVE_TO', row: tile.row, col: tile.col });
+
+    // Route based on tile type
+    switch (tile.type) {
       case 'fight':
       case 'elite':
       case 'boss':
-        router.push(`/battle?encounterId=${node.encounterId ?? 'normal_fight_1'}`);
+        router.push(`/battle?encounterId=${tile.encounterId ?? 'normal_fight_1'}`);
         break;
 
       case 'shop':
@@ -168,57 +201,49 @@ export default function MapScreen() {
         break;
 
       case 'rest':
-        setPendingNode(node);
         setRestModalVisible(true);
         break;
 
       case 'event':
-        setPendingNode(node);
         setEventModalVisible(true);
+        break;
+
+      case 'corridor':
+      case 'start':
+        // auto-completed in MOVE_TO reducer — nothing else to do
         break;
     }
   }
 
-  function completeNode() {
-    if (!pendingNode) return;
-    dispatch({ type: 'COMPLETE_NODE', finalHp: runState!.hp, goldEarned: 0 });
-    setPendingNode(null);
-  }
-
   function handleHeal() {
-    const healAmount = Math.floor(runState!.maxHp * 0.3);
-    dispatch({ type: 'HEAL', amount: healAmount, cost: 0 });
-    completeNode();
+    const healAmt = Math.floor(maxHp * 0.3);
+    dispatch({ type: 'HEAL', amount: healAmt, cost: 0 });
+    dispatch({ type: 'COMPLETE_TILE', finalHp: Math.min(hp + healAmt, maxHp), goldEarned: 0 });
     setRestModalVisible(false);
   }
 
   function handleRestLeave() {
-    completeNode();
+    dispatch({ type: 'COMPLETE_TILE', finalHp: hp, goldEarned: 0 });
     setRestModalVisible(false);
   }
 
   function handleEventClose() {
-    completeNode();
+    dispatch({ type: 'COMPLETE_TILE', finalHp: hp, goldEarned: 0 });
     setEventModalVisible(false);
   }
 
-  const { map, hp, maxHp, gold, relicIds, currentRow, currentCol, act } = runState;
-
-  // Render map top-to-bottom (boss first, start last — gives a "climbing" feel)
-  const reversedRows = [...map].reverse();
-
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#111" />
+      <StatusBar barStyle="light-content" backgroundColor="#070710" />
 
       {/* HUD */}
       <View style={styles.hud}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/')}>
-          <Text style={styles.backBtnText}>× Abandon</Text>
+        <TouchableOpacity style={styles.abandonBtn} onPress={() => router.replace('/')}>
+          <Text style={styles.abandonText}>× Abandon</Text>
         </TouchableOpacity>
         <View style={styles.hudCenter}>
-          <Text style={styles.actText}>Act {act}</Text>
-          <Text style={styles.mapTitle}>Choose Your Path</Text>
+          <Text style={styles.actLabel}>Act {act} — Dungeon</Text>
+          <Text style={styles.posLabel}>({playerRow},{playerCol})</Text>
         </View>
         <View style={styles.hudRight}>
           <Text style={styles.hpText}>❤ {hp}/{maxHp}</Text>
@@ -226,48 +251,59 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* Relics bar */}
+      {/* Relics strip */}
       {relicIds.length > 0 && (
-        <View style={styles.relicsBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.relicsScroll}
+          contentContainerStyle={styles.relicsContent}
+        >
           {relicIds.map(id => {
             const def = RELIC_DEFINITIONS.find(r => r.id === id);
             return (
               <View key={id} style={styles.relicBadge}>
-                <Text style={styles.relicBadgeText}>{def?.name ?? id}</Text>
+                <Text style={styles.relicText}>{def?.name ?? id}</Text>
               </View>
             );
           })}
-        </View>
+        </ScrollView>
       )}
 
-      {/* Map */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {reversedRows.map((row, reversedIdx) => {
-          const actualRow = map.length - 1 - reversedIdx;
-          return (
-            <View key={actualRow} style={styles.mapRow}>
-              {row.map((node, colIdx) => (
-                <React.Fragment key={node.id}>
-                  <NodeButton
-                    node={node}
-                    isCurrent={currentRow === actualRow && currentCol === colIdx}
-                    onPress={() => handleNodePress(node)}
+      {/* Legend */}
+      <View style={styles.legend}>
+        <Text style={styles.legendText}>Tap an adjacent tile to move. Fog hides unexplored rooms.</Text>
+      </View>
+
+      {/* Grid */}
+      <View style={styles.gridWrapper}>
+        <View style={styles.grid}>
+          {grid.map((row, r) => (
+            <View key={r} style={styles.gridRow}>
+              {row.map((tile, c) => (
+                <React.Fragment key={`${r},${c}`}>
+                  <TileButton
+                    tile={tile}
+                    isPlayer={r === playerRow && c === playerCol}
+                    isReachable={reachableSet.has(`${r},${c}`)}
+                    onPress={() => handleTilePress(tile)}
                   />
+                  {c < GRID_SIZE - 1 && <View style={{ width: TILE_GAP }} />}
                 </React.Fragment>
               ))}
             </View>
-          );
-        })}
-
-        {/* Start label */}
-        <View style={styles.startLabel}>
-          <Text style={styles.startLabelText}>— START —</Text>
+          ))}
         </View>
-      </ScrollView>
+      </View>
+
+      {/* Move instructions when all adjacent tiles visited */}
+      {reachableSet.size === 0 && !runState.runOver && (
+        <View style={styles.stuckBanner}>
+          <Text style={styles.stuckText}>
+            No new tiles to move to. The boss awaits at the bottom-right corner.
+          </Text>
+        </View>
+      )}
 
       {/* Modals */}
       <RestModal
@@ -290,27 +326,27 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#0d0d18',
+    backgroundColor: '#070710',
   },
 
   // HUD
   hud: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0d0d1e',
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#1a1a3a',
   },
-  backBtn: {
-    backgroundColor: '#3a1a1a',
+  abandonBtn: {
+    backgroundColor: '#2a0a0a',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  backBtnText: {
-    color: '#cc4444',
+  abandonText: {
+    color: '#aa3333',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -318,17 +354,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  actText: {
+  actLabel: {
     color: '#7a7aff',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  mapTitle: {
-    color: '#ddd',
-    fontSize: 14,
-    fontWeight: '700',
+  posLabel: {
+    color: '#333',
+    fontSize: 10,
   },
   hudRight: {
     alignItems: 'flex-end',
@@ -345,100 +380,119 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Relics bar
-  relicsBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // Relics
+  relicsScroll: {
+    maxHeight: 32,
+    backgroundColor: '#0d0d1e',
+  },
+  relicsContent: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    gap: 6,
-    backgroundColor: '#12122a',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a3a',
+    gap: 8,
   },
   relicBadge: {
-    backgroundColor: '#252550',
+    backgroundColor: '#1e1e3e',
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  relicBadgeText: {
+  relicText: {
     color: '#9a9aff',
     fontSize: 11,
   },
 
-  // Map
-  scroll: {
-    flex: 1,
+  // Legend
+  legend: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: '#0a0a18',
+    borderBottomWidth: 1,
+    borderBottomColor: '#111',
   },
-  scrollContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    gap: 10,
-  },
-  mapRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+  legendText: {
+    color: '#3a3a5a',
+    fontSize: 11,
+    textAlign: 'center',
   },
 
-  // Node
-  node: {
-    width: 72,
-    height: 64,
-    borderRadius: 12,
-    borderWidth: 2,
-    backgroundColor: '#1a1a2e',
+  // Grid
+  gridWrapper: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    paddingHorizontal: 16,
   },
-  nodeActive: {
-    backgroundColor: '#252560',
+  grid: {
+    gap: TILE_GAP,
   },
-  nodeBoss: {
-    width: 100,
-    height: 80,
-    borderRadius: 16,
-    borderWidth: 3,
-  },
-  nodeIcon: {
-    fontSize: 22,
-  },
-  nodeLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  gridRow: {
+    flexDirection: 'row',
   },
 
-  startLabel: {
+  // Tile
+  tile: {
+    borderRadius: 6,
+    borderWidth: 1,
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    gap: 1,
   },
-  startLabelText: {
-    color: '#333',
-    fontSize: 11,
-    letterSpacing: 2,
+  playerIcon: {
+    fontSize: TILE_SIZE * 0.45,
+    color: '#aaddff',
+  },
+  tileIcon: {
+    fontSize: TILE_SIZE * 0.38,
+    lineHeight: TILE_SIZE * 0.44,
+  },
+  bossIcon: {
+    fontSize: TILE_SIZE * 0.44,
+  },
+  tileLabel: {
+    color: '#888',
+    fontSize: 8,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  bossLabel: {
+    color: '#cc2222',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+
+  // Stuck banner
+  stuckBanner: {
+    backgroundColor: '#1a1a0a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  stuckText: {
+    color: '#666',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
   },
 
   // Modals
   modalBg: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
+    backgroundColor: 'rgba(0,0,0,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   modalBox: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0d0d1e',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 380,
     gap: 14,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#2a2a4a',
   },
   modalTitle: {
     color: '#fff',
@@ -452,16 +506,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  modalHpRow: {
-    alignItems: 'center',
-  },
-  modalHpText: {
+  modalHp: {
     color: '#e74c3c',
     fontSize: 16,
     fontWeight: '700',
+    textAlign: 'center',
   },
   modalNote: {
-    color: '#555',
+    color: '#444',
     fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
@@ -479,13 +531,13 @@ const styles = StyleSheet.create({
   },
   modalSecondary: {
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: '#333',
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: 'center',
   },
   modalSecondaryText: {
-    color: '#888',
+    color: '#777',
     fontSize: 14,
   },
 });
