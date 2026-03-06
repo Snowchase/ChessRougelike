@@ -1,8 +1,8 @@
 // ─── Core Enumerations ───────────────────────────────────────────────────────
 
-export type PieceType = 'PAWN' | 'KNIGHT' | 'BISHOP' | 'ROOK' | 'QUEEN' | 'KING';
+export type PieceType = 'ROGUE' | 'BRAWLER' | 'RANGER' | 'GUARDIAN' | 'WITCH' | 'HERO';
 export type Team = 'player' | 'enemy';
-export type UpgradeType = 'PROMOTED' | 'NIGHTMARE' | 'SIEGE' | 'DARK_BISHOP';
+export type UpgradeType = 'VETERAN' | 'NIGHTMARE' | 'SIEGE' | 'DARK_RANGER';
 export type CardEffect = 'NORMAL' | 'CHAIN' | 'DIAGONAL_SWEEP' | 'CASTLE' | 'GAMBIT';
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
@@ -22,6 +22,16 @@ export interface Position {
   col: number;
 }
 
+// ─── Tile ─────────────────────────────────────────────────────────────────────
+
+export type TileType = 'FLOOR' | 'WALL' | 'WATER' | 'BREAKABLE_WALL' | 'LAVA';
+
+export interface Tile {
+  type: TileType;
+  hp?: number;      // BREAKABLE_WALL durability (e.g. 2 hits to break)
+  variant?: number; // visual variant for cracked states
+}
+
 // ─── Piece ────────────────────────────────────────────────────────────────────
 
 export interface Piece {
@@ -30,8 +40,8 @@ export interface Piece {
   team: Team;
   position: Position;
   upgrades: UpgradeType[];
-  poisoned: boolean;       // Poisoned Bishop relic effect
-  hasMoved: boolean;       // track first move (pawn double-step)
+  poisoned: boolean;       // Envenomed Ranger relic effect
+  hasMoved: boolean;       // track first move (rogue double-step)
 }
 
 // ─── Move Cards ───────────────────────────────────────────────────────────────
@@ -44,7 +54,7 @@ export interface MoveCard {
   effect: CardEffect;
   rarity: Rarity;
   description: string;
-  hpCost?: number;  // for Gambit
+  hpCost?: number;  // for Gambit-style cards
 }
 
 // ─── Relics ───────────────────────────────────────────────────────────────────
@@ -92,6 +102,7 @@ export type BattlePhase =
 
 export interface BattleState {
   pieces: Piece[];
+  board: Tile[][];   // 8×8 grid of environment tiles
 
   // Card system
   playerHand: MoveCard[];

@@ -7,91 +7,91 @@ import { MoveCard, PieceType } from './types';
 // ─── Card Pool ────────────────────────────────────────────────────────────────
 
 export const ALL_CARDS: MoveCard[] = [
-  // ── Pawn Cards ──
+  // ── Rogue Cards ──
   {
-    id: 'advance',
-    pieceType: 'PAWN',
-    name: 'Advance',
+    id: 'skulk',
+    pieceType: 'ROGUE',
+    name: 'Skulk',
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move a Pawn forward 1–2 squares.',
+    description: 'Move a Rogue forward 1–2 squares.',
   },
   {
-    id: 'push',
-    pieceType: 'PAWN',
-    name: 'Aggressive Push',
+    id: 'shadow_strike',
+    pieceType: 'ROGUE',
+    name: 'Shadow Strike',
     baseDamage: 2,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'Move a Pawn forward, then may capture diagonally.',
+    description: 'Move a Rogue forward, then strike diagonally.',
   },
 
-  // ── Knight Cards ──
+  // ── Brawler Cards ──
   {
     id: 'charge',
-    pieceType: 'KNIGHT',
-    name: 'Charge',
+    pieceType: 'BRAWLER',
+    name: "Brawler's Charge",
     baseDamage: 2,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'L-move; deal damage on landing.',
+    description: 'Leap through enemies; deal damage on landing.',
   },
   {
-    id: 'midnight_ride',
-    pieceType: 'KNIGHT',
-    name: 'Midnight Ride',
+    id: 'bull_rush',
+    pieceType: 'BRAWLER',
+    name: 'Bull Rush',
     baseDamage: 3,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'L-move; hits next square after landing.',
+    description: 'Leap and smash — hits next square after landing.',
   },
 
-  // ── Bishop Cards ──
+  // ── Ranger Cards ──
   {
-    id: 'sweep',
-    pieceType: 'BISHOP',
-    name: 'Sweep',
+    id: 'covering_fire',
+    pieceType: 'RANGER',
+    name: 'Covering Fire',
     baseDamage: 1,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'common',
-    description: 'Diagonal move; hits all pieces in path.',
+    description: 'Diagonal move; hits all targets in path.',
   },
   {
-    id: 'dark_prayer',
-    pieceType: 'BISHOP',
-    name: 'Dark Prayer',
+    id: 'poison_arrow',
+    pieceType: 'RANGER',
+    name: 'Poison Arrow',
     baseDamage: 2,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'uncommon',
     description: 'Diagonal move; poisons enemies in path.',
   },
 
-  // ── Rook Cards ──
+  // ── Guardian Cards ──
   {
-    id: 'castle',
-    pieceType: 'ROOK',
-    name: 'Castle',
+    id: 'shield_wall',
+    pieceType: 'GUARDIAN',
+    name: 'Shield Wall',
     baseDamage: 2,
     effect: 'CASTLE',
     rarity: 'common',
-    description: 'Move + swap positions with an adjacent ally.',
+    description: 'March and swap positions with an adjacent ally.',
   },
   {
-    id: 'siege',
-    pieceType: 'ROOK',
-    name: 'Siege',
+    id: 'battering_ram',
+    pieceType: 'GUARDIAN',
+    name: 'Battering Ram',
     baseDamage: 3,
     effect: 'CASTLE',
     rarity: 'uncommon',
-    description: 'Powerful rook thrust; captures don\'t end your turn.',
+    description: 'Powerful thrust; captures don\'t end your turn.',
   },
 
-  // ── Queen Cards ──
+  // ── Witch Cards ──
   {
-    id: 'gambit',
-    pieceType: 'QUEEN',
-    name: 'Gambit',
+    id: 'arcane_surge',
+    pieceType: 'WITCH',
+    name: 'Arcane Surge',
     baseDamage: 4,
     effect: 'GAMBIT',
     rarity: 'rare',
@@ -99,25 +99,25 @@ export const ALL_CARDS: MoveCard[] = [
     hpCost: 2,
   },
   {
-    id: 'queen_sacrifice',
-    pieceType: 'QUEEN',
-    name: 'Royal Sacrifice',
+    id: 'blood_ritual',
+    pieceType: 'WITCH',
+    name: 'Blood Ritual',
     baseDamage: 6,
     effect: 'GAMBIT',
     rarity: 'rare',
-    description: 'Massive damage — costs 5 HP.',
+    description: 'Devastating power — costs 5 HP.',
     hpCost: 5,
   },
 
-  // ── King Cards ──
+  // ── Hero Cards ──
   {
-    id: 'king_step',
-    pieceType: 'KING',
-    name: 'Tactical Step',
+    id: 'hero_step',
+    pieceType: 'HERO',
+    name: "Hero's Stand",
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move King one square in any direction.',
+    description: 'Move Hero one square in any direction.',
   },
 ];
 

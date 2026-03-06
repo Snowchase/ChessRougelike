@@ -138,8 +138,8 @@ export default function BattleScreen() {
 
         {/* Piece counts */}
         <View style={styles.pieceCounts}>
-          <Text style={styles.countText}>♙×{playerPieceCount}</Text>
-          <Text style={styles.countTextEnemy}>♟×{playerEnemyCount}</Text>
+          <Text style={styles.countText}>Party ×{playerPieceCount}</Text>
+          <Text style={styles.countTextEnemy}>Enemy ×{playerEnemyCount}</Text>
         </View>
       </View>
 
@@ -201,7 +201,7 @@ export default function BattleScreen() {
           <Text style={styles.overlaySubtitle}>
             {state.winner === 'player'
               ? `You earned ${state.gold} gold!`
-              : 'Your king has fallen.'}
+              : 'Your Hero has fallen.'}
           </Text>
           <TouchableOpacity style={styles.restartBtn} onPress={handleRestart}>
             <Text style={styles.restartBtnText}>Play Again</Text>

@@ -2,10 +2,10 @@
  * relics.ts — Relic definitions (pure functions that transform BattleState)
  *
  * Implemented for Phase 1:
- *   1. Blood Pawn       — On Capture: gain +1 HP
- *   2. Zwischenzug      — On Capture: every 3rd capture doubles the combo multiplier step
- *   3. Fork             — On Land:   if piece threatens 2+ enemies, draw an extra card
- *   4. Poisoned Bishop  — On Capture (by Bishop): enemies in diagonal path become poisoned
+ *   1. Blood Rogue         — On Capture: gain +1 HP
+ *   2. Zwischenzug         — On Capture: every 3rd capture doubles the combo multiplier step
+ *   3. Fork                — On Land:   if piece threatens 2+ enemies, draw an extra card
+ *   4. Envenomed Ranger    — On Capture (by Ranger): enemies in diagonal path become poisoned
  */
 
 import { RelicDefinition, BattleState, GameEvent, Piece } from './types';
@@ -14,10 +14,10 @@ import { drawCards } from './cards';
 
 export const RELIC_DEFINITIONS: RelicDefinition[] = [
 
-  // ── 1. Blood Pawn ──────────────────────────────────────────────────────────
+  // ── 1. Blood Rogue ─────────────────────────────────────────────────────────
   {
-    id: 'blood_pawn',
-    name: 'Blood Pawn',
+    id: 'blood_rogue',
+    name: 'Blood Rogue',
     description: 'On Capture: gain +1 HP (up to max).',
     trigger: 'onCapture',
     rarity: 'common',
@@ -27,7 +27,7 @@ export const RELIC_DEFINITIONS: RelicDefinition[] = [
       if (gained <= 0) return {};
       return {
         playerHp: newHp,
-        log: [...state.log, `Blood Pawn: gained ${gained} HP (${newHp}/${state.maxPlayerHp})`],
+        log: [...state.log, `Blood Rogue: gained ${gained} HP (${newHp}/${state.maxPlayerHp})`],
       };
     },
   },
@@ -42,7 +42,6 @@ export const RELIC_DEFINITIONS: RelicDefinition[] = [
     apply(state, _event, relic) {
       relic.counter += 1;
       if (relic.counter % 3 === 0) {
-        // Double the combo count this turn for an extra bonus
         const bonus = Math.floor(state.consecutiveCaptures / 2) + 1;
         return {
           consecutiveCaptures: state.consecutiveCaptures + bonus,
@@ -64,7 +63,7 @@ export const RELIC_DEFINITIONS: RelicDefinition[] = [
       const piece = state.pieces.find(p => p.id === event.pieceId);
       if (!piece || piece.team !== 'player') return {};
 
-      const threats = countThreats(piece, state.pieces);
+      const threats = countThreats(piece, state.pieces, state.board);
       if (threats < 2) return {};
 
       const { drawn, newDeck, newDiscard } = drawCards(state.playerDeck, state.playerDiscard, 1);
@@ -79,16 +78,16 @@ export const RELIC_DEFINITIONS: RelicDefinition[] = [
     },
   },
 
-  // ── 4. Poisoned Bishop ─────────────────────────────────────────────────────
+  // ── 4. Envenomed Ranger ────────────────────────────────────────────────────
   {
-    id: 'poisoned_bishop',
-    name: 'Poisoned Bishop',
-    description: 'On Bishop capture: poison all enemies on the same diagonals.',
+    id: 'envenomed_ranger',
+    name: 'Envenomed Ranger',
+    description: 'On Ranger capture: poison all enemies on the same diagonals.',
     trigger: 'onCapture',
     rarity: 'uncommon',
     apply(state, event, _relic) {
       const piece = state.pieces.find(p => p.id === event.pieceId);
-      if (!piece || piece.type !== 'BISHOP' || piece.team !== 'player') return {};
+      if (!piece || piece.type !== 'RANGER' || piece.team !== 'player') return {};
 
       const capturePos = event.toPosition;
       if (!capturePos) return {};
@@ -108,8 +107,8 @@ export const RELIC_DEFINITIONS: RelicDefinition[] = [
       ).length;
 
       const logEntry = poisonedCount > 0
-        ? `Poisoned Bishop: ${poisonedCount} enemy piece(s) poisoned!`
-        : `Poisoned Bishop: no new enemies on diagonals.`;
+        ? `Envenomed Ranger: ${poisonedCount} enemy piece(s) poisoned!`
+        : `Envenomed Ranger: no new enemies on diagonals.`;
 
       return {
         pieces: updatedPieces,
