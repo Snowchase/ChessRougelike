@@ -5,7 +5,7 @@
  * one turn in advance (Slay the Spire-style intents).
  *
  * The AI picks moves based on its current script step:
- *   ADVANCE  — move a piece toward the player's king
+ *   ADVANCE  — move a piece toward the player's Hero
  *   THREATEN — position a piece to fork the player
  *   ATTACK   — capture a player piece if possible; else advance
  */
@@ -18,8 +18,8 @@ import { getLegalMoves, pieceAt } from './moves';
 export const GUARD_SCRIPT: EnemyScript = {
   name: 'Guard',
   steps: [
-    { action: 'ADVANCE',  description: 'The enemy advances.' },
-    { action: 'THREATEN', description: 'The enemy repositions for a fork.' },
+    { action: 'ADVANCE',  description: 'The enemy advances through the dungeon.' },
+    { action: 'THREATEN', description: 'The enemy repositions for a flanking strike.' },
     { action: 'ATTACK',   description: 'The enemy prepares to strike!' },
   ],
 };
@@ -27,7 +27,7 @@ export const GUARD_SCRIPT: EnemyScript = {
 export const RUSHER_SCRIPT: EnemyScript = {
   name: 'Rusher',
   steps: [
-    { action: 'ADVANCE', description: 'The enemy charges forward.' },
+    { action: 'ADVANCE', description: 'The enemy charges forward!' },
     { action: 'ATTACK',  description: 'The enemy attacks!' },
   ],
 };
@@ -40,9 +40,9 @@ interface AIMove {
   isCapture: boolean;
 }
 
-function playerKingPos(state: BattleState): Position | null {
-  const king = state.pieces.find(p => p.type === 'KING' && p.team === 'player');
-  return king?.position ?? null;
+function playerHeroPos(state: BattleState): Position | null {
+  const hero = state.pieces.find(p => p.type === 'HERO' && p.team === 'player');
+  return hero?.position ?? null;
 }
 
 /** Manhattan distance between two positions */
@@ -54,7 +54,7 @@ function dist(a: Position, b: Position): number {
 function allEnemyMoves(state: BattleState): AIMove[] {
   const moves: AIMove[] = [];
   for (const piece of state.pieces.filter(p => p.team === 'enemy')) {
-    const legal = getLegalMoves(piece, state.pieces);
+    const legal = getLegalMoves(piece, state.pieces, state.board);
     for (const to of legal) {
       const target = pieceAt(state.pieces, to.row, to.col);
       moves.push({
@@ -70,7 +70,7 @@ function allEnemyMoves(state: BattleState): AIMove[] {
 /** ATTACK: pick the move that captures the highest-value player piece. */
 function attackMove(state: BattleState): AIMove | null {
   const PIECE_VALUE: Record<string, number> = {
-    PAWN: 1, KNIGHT: 3, BISHOP: 3, ROOK: 5, QUEEN: 9, KING: 100,
+    ROGUE: 1, BRAWLER: 3, RANGER: 3, GUARDIAN: 5, WITCH: 9, HERO: 100,
   };
   const captures = allEnemyMoves(state).filter(m => m.isCapture);
   if (captures.length === 0) return null;
@@ -85,18 +85,18 @@ function attackMove(state: BattleState): AIMove | null {
   return captures[0];
 }
 
-/** ADVANCE: move the piece closest to player king further toward it. */
+/** ADVANCE: move the piece closest to player Hero further toward it. */
 function advanceMove(state: BattleState): AIMove | null {
-  const kingPos = playerKingPos(state);
-  if (!kingPos) return null;
+  const heroPos = playerHeroPos(state);
+  if (!heroPos) return null;
 
   const all = allEnemyMoves(state);
   if (all.length === 0) return null;
 
-  // Sort by which move closes the most distance to player king
+  // Sort by which move closes the most distance to player Hero
   all.sort((a, b) => {
-    const dA = dist(a.to, kingPos);
-    const dB = dist(b.to, kingPos);
+    const dA = dist(a.to, heroPos);
+    const dB = dist(b.to, heroPos);
     return dA - dB;
   });
   return all[0];
@@ -105,7 +105,6 @@ function advanceMove(state: BattleState): AIMove | null {
 /** THREATEN: try to find a move that attacks 2+ player pieces (fork). Else advance. */
 function threatenMove(state: BattleState): AIMove | null {
   const all = allEnemyMoves(state);
-  // Find moves where the piece will threaten multiple player pieces
   let best: AIMove | null = null;
   let bestThreats = 0;
 
@@ -118,7 +117,7 @@ function threatenMove(state: BattleState): AIMove | null {
     const simPiece = simPieces.find(p => p.id === move.piece.id);
     if (!simPiece) continue;
 
-    const threats = getLegalMoves(simPiece, simPieces).filter(sq => {
+    const threats = getLegalMoves(simPiece, simPieces, state.board).filter(sq => {
       const target = pieceAt(simPieces, sq.row, sq.col);
       return target && target.team === 'player';
     }).length;

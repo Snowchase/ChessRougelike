@@ -19,6 +19,7 @@ import {
   Piece,
   Position,
   Team,
+  Tile,
   RelicInstance,
   MoveCard,
 } from './types';
@@ -41,27 +42,34 @@ function makePiece(
 
 function buildOpeningPieces(): Piece[] {
   return [
-    // Player pieces (bottom of board: rows 6–7)
-    makePiece('p_king',   'KING',   'player', 7, 4),
-    makePiece('p_bishop', 'BISHOP', 'player', 7, 2),
-    makePiece('p_knight', 'KNIGHT', 'player', 7, 1),
-    makePiece('p_rook',   'ROOK',   'player', 7, 0),
-    makePiece('p_pawn1',  'PAWN',   'player', 6, 2),
-    makePiece('p_pawn2',  'PAWN',   'player', 6, 3),
-    makePiece('p_pawn3',  'PAWN',   'player', 6, 4),
+    // Player party (bottom of board: rows 6–7)
+    makePiece('p_hero',     'HERO',     'player', 7, 4),
+    makePiece('p_ranger',   'RANGER',   'player', 7, 2),
+    makePiece('p_brawler',  'BRAWLER',  'player', 7, 1),
+    makePiece('p_guardian', 'GUARDIAN', 'player', 7, 0),
+    makePiece('p_rogue1',   'ROGUE',    'player', 6, 2),
+    makePiece('p_rogue2',   'ROGUE',    'player', 6, 3),
+    makePiece('p_rogue3',   'ROGUE',    'player', 6, 4),
 
-    // Enemy pieces (top of board: rows 0–1)
-    makePiece('e_king',   'KING',   'enemy', 0, 4),
-    makePiece('e_rook',   'ROOK',   'enemy', 0, 7),
-    makePiece('e_knight', 'KNIGHT', 'enemy', 0, 6),
-    makePiece('e_pawn1',  'PAWN',   'enemy', 1, 3),
-    makePiece('e_pawn2',  'PAWN',   'enemy', 1, 4),
-    makePiece('e_pawn3',  'PAWN',   'enemy', 1, 5),
+    // Enemy forces (top of board: rows 0–1)
+    makePiece('e_hero',     'HERO',     'enemy', 0, 4),
+    makePiece('e_guardian', 'GUARDIAN', 'enemy', 0, 7),
+    makePiece('e_brawler',  'BRAWLER',  'enemy', 0, 6),
+    makePiece('e_rogue1',   'ROGUE',    'enemy', 1, 3),
+    makePiece('e_rogue2',   'ROGUE',    'enemy', 1, 4),
+    makePiece('e_rogue3',   'ROGUE',    'enemy', 1, 5),
   ];
 }
 
+/** Build an 8×8 grid of FLOOR tiles (default empty dungeon). */
+function buildEmptyBoard(): Tile[][] {
+  return Array.from({ length: 8 }, () =>
+    Array.from({ length: 8 }, () => ({ type: 'FLOOR' as const })),
+  );
+}
+
 const STARTING_RELICS: RelicInstance[] = [
-  { relicId: 'blood_pawn', counter: 0 },
+  { relicId: 'blood_rogue', counter: 0 },
 ];
 
 // ─── State Factory ────────────────────────────────────────────────────────────
@@ -80,6 +88,7 @@ export function createInitialBattleState(): BattleState {
 
   return {
     pieces,
+    board: buildEmptyBoard(),
     playerHand: hand,
     playerDeck: newDeck,
     playerDiscard: [],
@@ -93,11 +102,12 @@ export function createInitialBattleState(): BattleState {
     consecutiveCaptures: 0,
     selectedCardId: null,
     selectedPieceId: null,
+    selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
     winner: null,
     gold: 0,
-    log: ['Battle begins! Draw your card and move a piece.'],
+    log: ['The dungeon awaits. Draw a card and move your party.'],
     enemyIntent: GUARD_SCRIPT.steps[0].description,
   };
 }
@@ -116,9 +126,9 @@ export type BattleAction =
 
 function checkOutcome(pieces: Piece[]): Team | null {
   const enemyAlive = pieces.some(p => p.team === 'enemy');
-  const playerKingAlive = pieces.some(p => p.team === 'player' && p.type === 'KING');
+  const playerHeroAlive = pieces.some(p => p.team === 'player' && p.type === 'HERO');
   if (!enemyAlive) return 'player';
-  if (!playerKingAlive) return 'enemy';
+  if (!playerHeroAlive) return 'enemy';
   return null;
 }
 
@@ -178,7 +188,7 @@ function executePlayerMove(
       ...s,
       consecutiveCaptures: s.consecutiveCaptures + 1,
       gold: s.gold + 1,
-      log: [...s.log, `Captured ${capturedPiece.type}! Combo ×${s.consecutiveCaptures + 1}. Gold +1`],
+      log: [...s.log, `Defeated ${capturedPiece.type}! Combo ×${s.consecutiveCaptures + 1}. Gold +1`],
     };
 
     // Emit onCapture
@@ -212,7 +222,7 @@ function executePlayerMove(
     };
   }
 
-  // 7. Apply HP cost (Gambit etc.)
+  // 7. Apply HP cost (Arcane Surge / Blood Ritual etc.)
   s = applyCardCost(s, card);
 
   // 8. Remove played card, move to discard
@@ -222,6 +232,7 @@ function executePlayerMove(
     playerDiscard: [...s.playerDiscard, card],
     selectedCardId: null,
     selectedPieceId: null,
+    selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
   };
@@ -236,7 +247,7 @@ function executePlayerMove(
       ...s,
       winner: outcome,
       phase: 'battle_over',
-      log: [...s.log, outcome === 'player' ? 'Victory! All enemies defeated!' : 'Defeat! Your king was captured.'],
+      log: [...s.log, outcome === 'player' ? 'Victory! All enemies slain!' : 'Defeat! Your Hero has fallen.'],
     };
   }
 
@@ -280,7 +291,7 @@ function resolveEnemyTurn(state: BattleState): BattleState {
 
   if (capturedPieceId) {
     const captured = state.pieces.find(p => p.id === capturedPieceId);
-    s = { ...s, log: [...s.log, `Enemy captured your ${captured?.type ?? 'piece'}!`] };
+    s = { ...s, log: [...s.log, `Enemy defeated your ${captured?.type ?? 'ally'}!`] };
     s = dispatchEvent(s, { type: EVENTS.ON_PIECE_DEATH, pieceId: capturedPieceId });
   }
 
@@ -294,7 +305,7 @@ function resolveEnemyTurn(state: BattleState): BattleState {
       ...s,
       winner: outcome,
       phase: 'battle_over',
-      log: [...s.log, outcome === 'player' ? 'Victory!' : 'Defeat! Your king was captured.'],
+      log: [...s.log, outcome === 'player' ? 'Victory!' : 'Defeat! Your Hero has fallen.'],
     };
   }
 
@@ -328,14 +339,21 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
   switch (action.type) {
     // ── Select a card ─────────────────────────────────────────────────────────
     case 'SELECT_CARD': {
-      if (state.phase !== 'player_select_card') return state;
+      const allowedPhases = ['player_select_card', 'player_select_piece'];
+      if (!allowedPhases.includes(state.phase)) return state;
       const card = state.playerHand.find(c => c.id === action.cardId);
       if (!card) return state;
+
+      // Highlight all player pieces that can be moved with this card
+      const selectable = state.pieces
+        .filter(p => p.team === 'player' && p.type === card.pieceType)
+        .map(p => p.position);
 
       return {
         ...state,
         selectedCardId: card.id,
         selectedPieceId: null,
+        selectableSquares: selectable,
         highlightedSquares: [],
         captureSquares: [],
         phase: 'player_select_piece',
@@ -344,15 +362,30 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
 
     // ── Deselect ──────────────────────────────────────────────────────────────
     case 'DESELECT': {
+      if (state.phase === 'player_select_destination') {
+        // Go back to piece selection — restore selectable highlights for the current card
+        const card = state.playerHand.find(c => c.id === state.selectedCardId);
+        const selectable = card
+          ? state.pieces.filter(p => p.team === 'player' && p.type === card.pieceType).map(p => p.position)
+          : [];
+        return {
+          ...state,
+          selectedPieceId: null,
+          selectableSquares: selectable,
+          highlightedSquares: [],
+          captureSquares: [],
+          phase: 'player_select_piece',
+        };
+      }
+      // From player_select_piece or any other phase — fully cancel card selection
       return {
         ...state,
         selectedCardId: null,
         selectedPieceId: null,
+        selectableSquares: [],
         highlightedSquares: [],
         captureSquares: [],
-        phase: state.phase === 'player_select_destination'
-          ? 'player_select_piece'
-          : state.phase,
+        phase: 'player_select_card',
       };
     }
 
@@ -368,7 +401,7 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       );
       if (!piece) return state;
 
-      const { moves, captures } = classifyMoves(piece, state.pieces);
+      const { moves, captures } = classifyMoves(piece, state.pieces, state.board);
 
       if (moves.length === 0 && captures.length === 0) {
         return {
@@ -380,6 +413,7 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       return {
         ...state,
         selectedPieceId: piece.id,
+        selectableSquares: [],
         highlightedSquares: moves,
         captureSquares: captures,
         phase: 'player_select_destination',

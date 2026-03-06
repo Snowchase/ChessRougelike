@@ -6,9 +6,14 @@
  *   Row 7 = bottom (player starting side)
  *   Player pieces move UP (decreasing row)
  *   Enemy pieces move DOWN (increasing row)
+ *
+ * Environment tiles:
+ *   WALL / BREAKABLE_WALL — block movement AND line-of-sight for sliders
+ *   WATER / LAVA          — passable; transparent to line-of-sight
+ *   FLOOR                 — no restriction
  */
 
-import { Piece, PieceType, Position, Team } from './types';
+import { Piece, PieceType, Position, Team, Tile } from './types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,9 +30,17 @@ function occupiedBy(pieces: Piece[], row: number, col: number, team: Team): bool
   return p !== undefined && p.team === team;
 }
 
-/** Slide in one direction until the board edge, a friendly piece, or an enemy piece. */
+/** Returns true if the tile at (row, col) is impassable (wall). */
+function isWall(board: Tile[][], row: number, col: number): boolean {
+  const tile = board[row]?.[col];
+  if (!tile) return false;
+  return tile.type === 'WALL' || tile.type === 'BREAKABLE_WALL';
+}
+
+/** Slide in one direction until the board edge, a wall tile, a friendly piece, or an enemy piece. */
 function slide(
   pieces: Piece[],
+  board: Tile[][],
   row: number,
   col: number,
   dr: number,
@@ -39,9 +52,10 @@ function slide(
   let nr = row + dr;
   let nc = col + dc;
   while (inBounds(nr, nc)) {
-    if (occupiedBy(pieces, nr, nc, team)) break;       // blocked by friendly
+    if (isWall(board, nr, nc)) break;              // wall blocks entry and sight
+    if (occupiedBy(pieces, nr, nc, team)) break;   // blocked by friendly
     moves.push({ row: nr, col: nc });
-    if (occupiedBy(pieces, nr, nc, opp)) break;        // stop after capture square
+    if (occupiedBy(pieces, nr, nc, opp)) break;    // stop after capture square
     nr += dr;
     nc += dc;
   }
@@ -50,7 +64,7 @@ function slide(
 
 // ─── Per-piece move generators ────────────────────────────────────────────────
 
-function pawnMoves(piece: Piece, pieces: Piece[]): Position[] {
+function rogueMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
   const moves: Position[] = [];
   const { team, upgrades, position: { row, col } } = piece;
   const dir = team === 'player' ? -1 : 1;
@@ -59,11 +73,11 @@ function pawnMoves(piece: Piece, pieces: Piece[]): Position[] {
 
   // Forward 1
   const fwd1 = row + dir;
-  if (inBounds(fwd1, col) && !pieceAt(pieces, fwd1, col)) {
+  if (inBounds(fwd1, col) && !isWall(board, fwd1, col) && !pieceAt(pieces, fwd1, col)) {
     moves.push({ row: fwd1, col });
-    // Forward 2 from starting row (must not be blocked at fwd1)
+    // Forward 2 from starting row
     const fwd2 = row + 2 * dir;
-    if (row === startRow && inBounds(fwd2, col) && !pieceAt(pieces, fwd2, col)) {
+    if (row === startRow && inBounds(fwd2, col) && !isWall(board, fwd2, col) && !pieceAt(pieces, fwd2, col)) {
       moves.push({ row: fwd2, col });
     }
   }
@@ -72,12 +86,12 @@ function pawnMoves(piece: Piece, pieces: Piece[]): Position[] {
   for (const dc of [-1, 1]) {
     const nr = row + dir;
     const nc = col + dc;
-    if (!inBounds(nr, nc)) continue;
+    if (!inBounds(nr, nc) || isWall(board, nr, nc)) continue;
 
     if (occupiedBy(pieces, nr, nc, opp)) {
       moves.push({ row: nr, col: nc });
-    } else if (upgrades.includes('PROMOTED') && !pieceAt(pieces, nr, nc)) {
-      // PROMOTED PAWN: can also move diagonally to empty squares
+    } else if (upgrades.includes('VETERAN') && !pieceAt(pieces, nr, nc)) {
+      // VETERAN ROGUE: can also move diagonally to empty squares
       moves.push({ row: nr, col: nc });
     }
   }
@@ -85,9 +99,10 @@ function pawnMoves(piece: Piece, pieces: Piece[]): Position[] {
   return moves;
 }
 
-function knightMoves(piece: Piece, pieces: Piece[]): Position[] {
+function brawlerMoves(piece: Piece, pieces: Piece[], _board: Tile[][]): Position[] {
   const moves: Position[] = [];
   const { team, position: { row, col } } = piece;
+  // Brawler leaps — walls don't block jumpers
   const OFFSETS = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
 
   for (const [dr, dc] of OFFSETS) {
@@ -100,38 +115,38 @@ function knightMoves(piece: Piece, pieces: Piece[]): Position[] {
   return moves;
 }
 
-function bishopMoves(piece: Piece, pieces: Piece[]): Position[] {
+function rangerMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
   const { team, position: { row, col } } = piece;
   return [
-    ...slide(pieces, row, col, -1, -1, team),
-    ...slide(pieces, row, col, -1,  1, team),
-    ...slide(pieces, row, col,  1, -1, team),
-    ...slide(pieces, row, col,  1,  1, team),
+    ...slide(pieces, board, row, col, -1, -1, team),
+    ...slide(pieces, board, row, col, -1,  1, team),
+    ...slide(pieces, board, row, col,  1, -1, team),
+    ...slide(pieces, board, row, col,  1,  1, team),
   ];
 }
 
-function rookMoves(piece: Piece, pieces: Piece[]): Position[] {
+function guardianMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
   const { team, position: { row, col } } = piece;
   return [
-    ...slide(pieces, row, col, -1, 0, team),
-    ...slide(pieces, row, col,  1, 0, team),
-    ...slide(pieces, row, col,  0, -1, team),
-    ...slide(pieces, row, col,  0,  1, team),
+    ...slide(pieces, board, row, col, -1, 0, team),
+    ...slide(pieces, board, row, col,  1, 0, team),
+    ...slide(pieces, board, row, col,  0, -1, team),
+    ...slide(pieces, board, row, col,  0,  1, team),
   ];
 }
 
-function queenMoves(piece: Piece, pieces: Piece[]): Position[] {
-  return [...bishopMoves(piece, pieces), ...rookMoves(piece, pieces)];
+function witchMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
+  return [...rangerMoves(piece, pieces, board), ...guardianMoves(piece, pieces, board)];
 }
 
-function kingMoves(piece: Piece, pieces: Piece[]): Position[] {
+function heroMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
   const moves: Position[] = [];
   const { team, position: { row, col } } = piece;
   const OFFSETS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
   for (const [dr, dc] of OFFSETS) {
     const nr = row + dr;
     const nc = col + dc;
-    if (inBounds(nr, nc) && !occupiedBy(pieces, nr, nc, team)) {
+    if (inBounds(nr, nc) && !isWall(board, nr, nc) && !occupiedBy(pieces, nr, nc, team)) {
       moves.push({ row: nr, col: nc });
     }
   }
@@ -140,14 +155,22 @@ function kingMoves(piece: Piece, pieces: Piece[]): Position[] {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export function getLegalMoves(piece: Piece, pieces: Piece[]): Position[] {
+/** Empty 8×8 FLOOR board — used as default when no layout is specified. */
+function emptyBoard(): Tile[][] {
+  return Array.from({ length: 8 }, () =>
+    Array.from({ length: 8 }, () => ({ type: 'FLOOR' as const })),
+  );
+}
+
+export function getLegalMoves(piece: Piece, pieces: Piece[], board?: Tile[][]): Position[] {
+  const b = board ?? emptyBoard();
   switch (piece.type) {
-    case 'PAWN':   return pawnMoves(piece, pieces);
-    case 'KNIGHT': return knightMoves(piece, pieces);
-    case 'BISHOP': return bishopMoves(piece, pieces);
-    case 'ROOK':   return rookMoves(piece, pieces);
-    case 'QUEEN':  return queenMoves(piece, pieces);
-    case 'KING':   return kingMoves(piece, pieces);
+    case 'ROGUE':    return rogueMoves(piece, pieces, b);
+    case 'BRAWLER':  return brawlerMoves(piece, pieces, b);
+    case 'RANGER':   return rangerMoves(piece, pieces, b);
+    case 'GUARDIAN': return guardianMoves(piece, pieces, b);
+    case 'WITCH':    return witchMoves(piece, pieces, b);
+    case 'HERO':     return heroMoves(piece, pieces, b);
   }
 }
 
@@ -155,9 +178,10 @@ export function getLegalMoves(piece: Piece, pieces: Piece[]): Position[] {
 export function classifyMoves(
   piece: Piece,
   pieces: Piece[],
+  board?: Tile[][],
 ): { moves: Position[]; captures: Position[] } {
   const opp: Team = piece.team === 'player' ? 'enemy' : 'player';
-  const all = getLegalMoves(piece, pieces);
+  const all = getLegalMoves(piece, pieces, board);
   const moves: Position[] = [];
   const captures: Position[] = [];
   for (const sq of all) {
@@ -171,14 +195,14 @@ export function classifyMoves(
 }
 
 /** Count how many enemy pieces a piece threatens (for Fork relic). */
-export function countThreats(piece: Piece, pieces: Piece[]): number {
+export function countThreats(piece: Piece, pieces: Piece[], board?: Tile[][]): number {
   const opp: Team = piece.team === 'player' ? 'enemy' : 'player';
-  return getLegalMoves(piece, pieces).filter(sq =>
+  return getLegalMoves(piece, pieces, board).filter(sq =>
     occupiedBy(pieces, sq.row, sq.col, opp),
   ).length;
 }
 
-/** Get all diagonal positions from a square (for Poisoned Bishop). */
+/** Get all diagonal positions from a square (for Envenomed Ranger relic). */
 export function getDiagonalPositions(from: Position): Position[] {
   const positions: Position[] = [];
   const DIRS = [[-1,-1],[-1,1],[1,-1],[1,1]];

@@ -1,12 +1,15 @@
 /**
- * BoardRenderer.tsx — 8×8 chess board with piece placement and square highlighting
+ * BoardRenderer.tsx — 8×8 dungeon board with piece placement and square highlighting
  *
- * Square colors:
- *   Light squares:  #F0D9B5
- *   Dark squares:   #B58863
- *   Move highlight: semi-transparent green dot
- *   Capture square: semi-transparent red overlay
- *   Selected piece: yellow border
+ * Tile layer (rendered beneath pieces):
+ *   FLOOR         — alternating light/dark dungeon stone
+ *   WALL          — dark charcoal (#3d3d3d), impassable
+ *   WATER         — deep blue (#1a4a6b), passable but damaging
+ *   BREAKABLE_WALL— brown (#6b4a1a), breaks when struck by Brawler/Guardian
+ *   LAVA          — deep red-orange (#8b2200), damages pieces that stand on it
+ *
+ * Piece symbols use two-letter labels colorable via text styling:
+ *   Player pieces: dark (#1a1a1a)   Enemy pieces: dark red (#8B0000)
  */
 
 import React, { useMemo } from 'react';
@@ -18,7 +21,7 @@ import {
   Dimensions,
 } from 'react-native';
 
-import { Piece, Position, BattleState } from '@/src/engine/types';
+import { Piece, Position, BattleState, TileType } from '@/src/engine/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -29,19 +32,30 @@ const CELL = BOARD_SIZE / 8;
 const LIGHT_SQ = '#F0D9B5';
 const DARK_SQ  = '#B58863';
 
-const PIECE_SYMBOL: Record<string, string> = {
-  player_PAWN:   '♙',
-  player_KNIGHT: '♘',
-  player_BISHOP: '♗',
-  player_ROOK:   '♖',
-  player_QUEEN:  '♕',
-  player_KING:   '♔',
-  enemy_PAWN:    '♟',
-  enemy_KNIGHT:  '♞',
-  enemy_BISHOP:  '♝',
-  enemy_ROOK:    '♜',
-  enemy_QUEEN:   '♛',
-  enemy_KING:    '♚',
+const TILE_COLOR: Record<TileType, string | null> = {
+  FLOOR:          null,           // null = use default light/dark square color
+  WALL:           '#3d3d3d',
+  WATER:          '#1a4a6b',
+  BREAKABLE_WALL: '#6b4a1a',
+  LAVA:           '#8b2200',
+};
+
+const TILE_LABEL: Record<TileType, string> = {
+  FLOOR:          '',
+  WALL:           '▪',
+  WATER:          '≋',
+  BREAKABLE_WALL: '▩',
+  LAVA:           '▓',
+};
+
+/** Two-letter dungeon labels for each piece type. */
+const PIECE_LABEL: Record<string, string> = {
+  ROGUE:    'Rg',
+  BRAWLER:  'Bw',
+  RANGER:   'Rn',
+  GUARDIAN: 'Gu',
+  WITCH:    'Wt',
+  HERO:     'Hr',
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -70,15 +84,18 @@ function buildSquareMap(pieces: Piece[]): Map<string, Piece> {
 export default function BoardRenderer({ state, onSquarePress }: BoardRendererProps) {
   const {
     pieces,
+    board,
     selectedPieceId,
+    selectableSquares,
     highlightedSquares,
     captureSquares,
   } = state;
 
   const squareMap = useMemo(() => buildSquareMap(pieces), [pieces]);
 
-  const highlightSet = useMemo(() => new Set(highlightedSquares.map(posKey)), [highlightedSquares]);
-  const captureSet   = useMemo(() => new Set(captureSquares.map(posKey)), [captureSquares]);
+  const selectableSet = useMemo(() => new Set(selectableSquares.map(posKey)), [selectableSquares]);
+  const highlightSet  = useMemo(() => new Set(highlightedSquares.map(posKey)), [highlightedSquares]);
+  const captureSet    = useMemo(() => new Set(captureSquares.map(posKey)), [captureSquares]);
 
   const selectedPiece = selectedPieceId
     ? pieces.find(p => p.id === selectedPieceId)
@@ -96,12 +113,17 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
             const key = `${row},${col}`;
             const isLight = (row + col) % 2 === 0;
             const piece = squareMap.get(key);
+            const isSelectable = selectableSet.has(key);
             const isHighlighted = highlightSet.has(key);
             const isCapture = captureSet.has(key);
             const isSelected = key === selectedKey;
             const isPoisoned = piece?.poisoned ?? false;
 
-            const bgColor = isLight ? LIGHT_SQ : DARK_SQ;
+            const tile = board?.[row]?.[col];
+            const tileType = tile?.type ?? 'FLOOR';
+            const tileColor = TILE_COLOR[tileType];
+            const bgColor = tileColor ?? (isLight ? LIGHT_SQ : DARK_SQ);
+            const tileLabel = TILE_LABEL[tileType];
 
             return (
               <TouchableOpacity
@@ -109,12 +131,20 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
                 style={[
                   styles.cell,
                   { backgroundColor: bgColor, width: CELL, height: CELL },
+                  isSelectable && styles.selectableCell,
                   isSelected && styles.selectedCell,
                   isCapture && styles.captureCell,
                 ]}
                 onPress={() => onSquarePress({ row, col })}
                 activeOpacity={0.8}
               >
+                {/* Tile environment label (walls, water, lava) */}
+                {tileLabel !== '' && !piece && (
+                  <Text style={[styles.tileLabel, tileType === 'LAVA' && styles.lavaTileLabel]}>
+                    {tileLabel}
+                  </Text>
+                )}
+
                 {/* Move dot */}
                 {isHighlighted && !piece && (
                   <View style={styles.moveDot} />
@@ -125,7 +155,7 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
                   <View style={styles.captureRing} />
                 )}
 
-                {/* Piece symbol */}
+                {/* Piece label */}
                 {piece && (
                   <Text
                     style={[
@@ -136,11 +166,11 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
                     numberOfLines={1}
                     adjustsFontSizeToFit
                   >
-                    {PIECE_SYMBOL[`${piece.team}_${piece.type}`] ?? '?'}
+                    {PIECE_LABEL[piece.type] ?? '??'}
                   </Text>
                 )}
 
-                {/* Poison indicator */}
+                {/* Poison indicator dot */}
                 {isPoisoned && (
                   <View style={styles.poisonDot} />
                 )}
@@ -171,6 +201,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  selectableCell: {
+    borderWidth: 2,
+    borderColor: 'rgba(100, 220, 255, 0.8)',
+  },
   selectedCell: {
     borderWidth: 3,
     borderColor: '#FFD700',
@@ -179,10 +213,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FF4444',
   },
+  tileLabel: {
+    fontSize: CELL * 0.45,
+    color: 'rgba(255,255,255,0.35)',
+    position: 'absolute',
+  },
+  lavaTileLabel: {
+    color: 'rgba(255,120,0,0.5)',
+  },
   pieceText: {
-    fontSize: CELL * 0.65,
-    lineHeight: CELL * 0.75,
+    fontSize: CELL * 0.38,
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   playerPiece: {
     color: '#1a1a1a',

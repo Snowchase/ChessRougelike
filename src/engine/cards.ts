@@ -7,117 +7,117 @@ import { MoveCard, PieceType } from './types';
 // ─── Card Pool ────────────────────────────────────────────────────────────────
 
 export const ALL_CARDS: MoveCard[] = [
-  // ── Pawn Cards ──
+  // ── Rogue Cards ──
   {
-    id: 'advance',
-    pieceType: 'PAWN',
-    name: 'Advance',
+    id: 'skulk',
+    pieceType: 'ROGUE',
+    name: 'Skulk',
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move a Pawn forward 1–2 squares.',
+    description: 'Step forward 1–2.',
   },
   {
-    id: 'push',
-    pieceType: 'PAWN',
-    name: 'Aggressive Push',
+    id: 'shadow_strike',
+    pieceType: 'ROGUE',
+    name: 'Shadow Strike',
     baseDamage: 2,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'Move a Pawn forward, then may capture diagonally.',
+    description: 'Step fwd, then hit diag.',
   },
 
-  // ── Knight Cards ──
+  // ── Brawler Cards ──
   {
     id: 'charge',
-    pieceType: 'KNIGHT',
-    name: 'Charge',
+    pieceType: 'BRAWLER',
+    name: "Brawler's Charge",
     baseDamage: 2,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'L-move; deal damage on landing.',
+    description: 'L-leap; hit on land.',
   },
   {
-    id: 'midnight_ride',
-    pieceType: 'KNIGHT',
-    name: 'Midnight Ride',
+    id: 'bull_rush',
+    pieceType: 'BRAWLER',
+    name: 'Bull Rush',
     baseDamage: 3,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'L-move; hits next square after landing.',
+    description: 'L-leap; chain hit after.',
   },
 
-  // ── Bishop Cards ──
+  // ── Ranger Cards ──
   {
-    id: 'sweep',
-    pieceType: 'BISHOP',
-    name: 'Sweep',
+    id: 'covering_fire',
+    pieceType: 'RANGER',
+    name: 'Covering Fire',
     baseDamage: 1,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'common',
-    description: 'Diagonal move; hits all pieces in path.',
+    description: 'Diag sweep; hit all.',
   },
   {
-    id: 'dark_prayer',
-    pieceType: 'BISHOP',
-    name: 'Dark Prayer',
+    id: 'poison_arrow',
+    pieceType: 'RANGER',
+    name: 'Poison Arrow',
     baseDamage: 2,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'uncommon',
-    description: 'Diagonal move; poisons enemies in path.',
+    description: 'Diag; poison foes hit.',
   },
 
-  // ── Rook Cards ──
+  // ── Guardian Cards ──
   {
-    id: 'castle',
-    pieceType: 'ROOK',
-    name: 'Castle',
+    id: 'shield_wall',
+    pieceType: 'GUARDIAN',
+    name: 'Shield Wall',
     baseDamage: 2,
     effect: 'CASTLE',
     rarity: 'common',
-    description: 'Move + swap positions with an adjacent ally.',
+    description: 'March + swap an ally.',
   },
   {
-    id: 'siege',
-    pieceType: 'ROOK',
-    name: 'Siege',
+    id: 'battering_ram',
+    pieceType: 'GUARDIAN',
+    name: 'Battering Ram',
     baseDamage: 3,
     effect: 'CASTLE',
     rarity: 'uncommon',
-    description: 'Powerful rook thrust; captures don\'t end your turn.',
+    description: 'Thrust; keep your turn.',
   },
 
-  // ── Queen Cards ──
+  // ── Witch Cards ──
   {
-    id: 'gambit',
-    pieceType: 'QUEEN',
-    name: 'Gambit',
+    id: 'arcane_surge',
+    pieceType: 'WITCH',
+    name: 'Arcane Surge',
     baseDamage: 4,
     effect: 'GAMBIT',
     rarity: 'rare',
-    description: 'Move any direction — costs 2 HP.',
+    description: 'Any direction. −2 HP.',
     hpCost: 2,
   },
   {
-    id: 'queen_sacrifice',
-    pieceType: 'QUEEN',
-    name: 'Royal Sacrifice',
+    id: 'blood_ritual',
+    pieceType: 'WITCH',
+    name: 'Blood Ritual',
     baseDamage: 6,
     effect: 'GAMBIT',
     rarity: 'rare',
-    description: 'Massive damage — costs 5 HP.',
+    description: 'Massive hit. −5 HP.',
     hpCost: 5,
   },
 
-  // ── King Cards ──
+  // ── Hero Cards ──
   {
-    id: 'king_step',
-    pieceType: 'KING',
-    name: 'Tactical Step',
+    id: 'hero_step',
+    pieceType: 'HERO',
+    name: "Hero's Stand",
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move King one square in any direction.',
+    description: 'One step, any dir.',
   },
 ];
 

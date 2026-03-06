@@ -17,15 +17,25 @@ import {
 
 import { MoveCard, BattleState, PieceType } from '@/src/engine/types';
 
-// ─── Piece colours ────────────────────────────────────────────────────────────
+// ─── Piece colours & labels ───────────────────────────────────────────────────
 
 const PIECE_COLOR: Record<PieceType, string> = {
-  PAWN:   '#4CAF50',
-  KNIGHT: '#2196F3',
-  BISHOP: '#9C27B0',
-  ROOK:   '#FF9800',
-  QUEEN:  '#E91E63',
-  KING:   '#FFD700',
+  ROGUE:    '#4CAF50',
+  BRAWLER:  '#2196F3',
+  RANGER:   '#9C27B0',
+  GUARDIAN: '#FF9800',
+  WITCH:    '#E91E63',
+  HERO:     '#FFD700',
+};
+
+/** Short badge label for each piece type (unique, max 2 chars). */
+const PIECE_BADGE: Record<PieceType, string> = {
+  ROGUE:    'Rg',
+  BRAWLER:  'Bw',
+  RANGER:   'Rn',
+  GUARDIAN: 'Gu',
+  WITCH:    'Wt',
+  HERO:     'Hr',
 };
 
 const RARITY_BORDER: Record<string, string> = {
@@ -80,7 +90,7 @@ export default function CardHand({ state, onCardSelect }: CardHandProps) {
             >
               {/* Piece type badge */}
               <View style={[styles.badge, { backgroundColor: PIECE_COLOR[card.pieceType] ?? '#555' }]}>
-                <Text style={styles.badgeText}>{card.pieceType[0]}</Text>
+                <Text style={styles.badgeText}>{PIECE_BADGE[card.pieceType] ?? '??'}</Text>
               </View>
 
               {/* Card name */}
@@ -151,17 +161,19 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   badge: {
-    width: 22,
+    width: 26,
     height: 22,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-start',
+    paddingHorizontal: 4,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
+    letterSpacing: -0.5,
   },
   cardName: {
     color: '#fff',
