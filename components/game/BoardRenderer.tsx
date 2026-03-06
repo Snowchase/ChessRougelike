@@ -86,14 +86,16 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
     pieces,
     board,
     selectedPieceId,
+    selectableSquares,
     highlightedSquares,
     captureSquares,
   } = state;
 
   const squareMap = useMemo(() => buildSquareMap(pieces), [pieces]);
 
-  const highlightSet = useMemo(() => new Set(highlightedSquares.map(posKey)), [highlightedSquares]);
-  const captureSet   = useMemo(() => new Set(captureSquares.map(posKey)), [captureSquares]);
+  const selectableSet = useMemo(() => new Set(selectableSquares.map(posKey)), [selectableSquares]);
+  const highlightSet  = useMemo(() => new Set(highlightedSquares.map(posKey)), [highlightedSquares]);
+  const captureSet    = useMemo(() => new Set(captureSquares.map(posKey)), [captureSquares]);
 
   const selectedPiece = selectedPieceId
     ? pieces.find(p => p.id === selectedPieceId)
@@ -111,6 +113,7 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
             const key = `${row},${col}`;
             const isLight = (row + col) % 2 === 0;
             const piece = squareMap.get(key);
+            const isSelectable = selectableSet.has(key);
             const isHighlighted = highlightSet.has(key);
             const isCapture = captureSet.has(key);
             const isSelected = key === selectedKey;
@@ -128,6 +131,7 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
                 style={[
                   styles.cell,
                   { backgroundColor: bgColor, width: CELL, height: CELL },
+                  isSelectable && styles.selectableCell,
                   isSelected && styles.selectedCell,
                   isCapture && styles.captureCell,
                 ]}
@@ -196,6 +200,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+  },
+  selectableCell: {
+    borderWidth: 2,
+    borderColor: 'rgba(100, 220, 255, 0.8)',
   },
   selectedCell: {
     borderWidth: 3,

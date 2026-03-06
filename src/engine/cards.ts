@@ -15,7 +15,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move a Rogue forward 1–2 squares.',
+    description: 'Step forward 1–2.',
   },
   {
     id: 'shadow_strike',
@@ -24,7 +24,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 2,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'Move a Rogue forward, then strike diagonally.',
+    description: 'Step fwd, then hit diag.',
   },
 
   // ── Brawler Cards ──
@@ -35,7 +35,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 2,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Leap through enemies; deal damage on landing.',
+    description: 'L-leap; hit on land.',
   },
   {
     id: 'bull_rush',
@@ -44,7 +44,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 3,
     effect: 'CHAIN',
     rarity: 'uncommon',
-    description: 'Leap and smash — hits next square after landing.',
+    description: 'L-leap; chain hit after.',
   },
 
   // ── Ranger Cards ──
@@ -55,7 +55,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 1,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'common',
-    description: 'Diagonal move; hits all targets in path.',
+    description: 'Diag sweep; hit all.',
   },
   {
     id: 'poison_arrow',
@@ -64,7 +64,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 2,
     effect: 'DIAGONAL_SWEEP',
     rarity: 'uncommon',
-    description: 'Diagonal move; poisons enemies in path.',
+    description: 'Diag; poison foes hit.',
   },
 
   // ── Guardian Cards ──
@@ -75,7 +75,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 2,
     effect: 'CASTLE',
     rarity: 'common',
-    description: 'March and swap positions with an adjacent ally.',
+    description: 'March + swap an ally.',
   },
   {
     id: 'battering_ram',
@@ -84,7 +84,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 3,
     effect: 'CASTLE',
     rarity: 'uncommon',
-    description: 'Powerful thrust; captures don\'t end your turn.',
+    description: 'Thrust; keep your turn.',
   },
 
   // ── Witch Cards ──
@@ -95,7 +95,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 4,
     effect: 'GAMBIT',
     rarity: 'rare',
-    description: 'Move any direction — costs 2 HP.',
+    description: 'Any direction. −2 HP.',
     hpCost: 2,
   },
   {
@@ -105,7 +105,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 6,
     effect: 'GAMBIT',
     rarity: 'rare',
-    description: 'Devastating power — costs 5 HP.',
+    description: 'Massive hit. −5 HP.',
     hpCost: 5,
   },
 
@@ -117,7 +117,7 @@ export const ALL_CARDS: MoveCard[] = [
     baseDamage: 1,
     effect: 'NORMAL',
     rarity: 'common',
-    description: 'Move Hero one square in any direction.',
+    description: 'One step, any dir.',
   },
 ];
 

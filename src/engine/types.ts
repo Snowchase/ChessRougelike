@@ -128,6 +128,7 @@ export interface BattleState {
   // Selection state (UI)
   selectedCardId: string | null;
   selectedPieceId: string | null;
+  selectableSquares: Position[];    // positions of pieces that can be moved with the selected card
   highlightedSquares: Position[];   // valid move destinations
   captureSquares: Position[];       // valid capture destinations
 

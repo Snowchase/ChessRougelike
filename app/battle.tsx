@@ -213,9 +213,13 @@ export default function BattleScreen() {
       )}
 
       {/* ── Deselect helper text ─────────────────────────────────────────── */}
-      {state.phase === 'player_select_destination' && (
+      {(state.phase === 'player_select_piece' || state.phase === 'player_select_destination') && (
         <TouchableOpacity style={styles.deselectHint} onPress={handleDeselect}>
-          <Text style={styles.deselectHintText}>Tap elsewhere to deselect</Text>
+          <Text style={styles.deselectHintText}>
+            {state.phase === 'player_select_piece'
+              ? 'Tap to cancel card selection'
+              : 'Tap to deselect piece'}
+          </Text>
         </TouchableOpacity>
       )}
     </SafeAreaView>

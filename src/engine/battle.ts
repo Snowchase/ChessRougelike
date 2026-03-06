@@ -102,6 +102,7 @@ export function createInitialBattleState(): BattleState {
     consecutiveCaptures: 0,
     selectedCardId: null,
     selectedPieceId: null,
+    selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
     winner: null,
@@ -231,6 +232,7 @@ function executePlayerMove(
     playerDiscard: [...s.playerDiscard, card],
     selectedCardId: null,
     selectedPieceId: null,
+    selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
   };
@@ -337,14 +339,21 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
   switch (action.type) {
     // ── Select a card ─────────────────────────────────────────────────────────
     case 'SELECT_CARD': {
-      if (state.phase !== 'player_select_card') return state;
+      const allowedPhases = ['player_select_card', 'player_select_piece'];
+      if (!allowedPhases.includes(state.phase)) return state;
       const card = state.playerHand.find(c => c.id === action.cardId);
       if (!card) return state;
+
+      // Highlight all player pieces that can be moved with this card
+      const selectable = state.pieces
+        .filter(p => p.team === 'player' && p.type === card.pieceType)
+        .map(p => p.position);
 
       return {
         ...state,
         selectedCardId: card.id,
         selectedPieceId: null,
+        selectableSquares: selectable,
         highlightedSquares: [],
         captureSquares: [],
         phase: 'player_select_piece',
@@ -353,15 +362,30 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
 
     // ── Deselect ──────────────────────────────────────────────────────────────
     case 'DESELECT': {
+      if (state.phase === 'player_select_destination') {
+        // Go back to piece selection — restore selectable highlights for the current card
+        const card = state.playerHand.find(c => c.id === state.selectedCardId);
+        const selectable = card
+          ? state.pieces.filter(p => p.team === 'player' && p.type === card.pieceType).map(p => p.position)
+          : [];
+        return {
+          ...state,
+          selectedPieceId: null,
+          selectableSquares: selectable,
+          highlightedSquares: [],
+          captureSquares: [],
+          phase: 'player_select_piece',
+        };
+      }
+      // From player_select_piece or any other phase — fully cancel card selection
       return {
         ...state,
         selectedCardId: null,
         selectedPieceId: null,
+        selectableSquares: [],
         highlightedSquares: [],
         captureSquares: [],
-        phase: state.phase === 'player_select_destination'
-          ? 'player_select_piece'
-          : state.phase,
+        phase: 'player_select_card',
       };
     }
 
@@ -389,6 +413,7 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       return {
         ...state,
         selectedPieceId: piece.id,
+        selectableSquares: [],
         highlightedSquares: moves,
         captureSquares: captures,
         phase: 'player_select_destination',
