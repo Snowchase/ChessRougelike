@@ -22,11 +22,14 @@ import {
   Tile,
   RelicInstance,
   MoveCard,
+  EnemyScript,
 } from './types';
 import { classifyMoves, pieceAt } from './moves';
 import { buildStartingDeck, drawCards, shuffleDeck } from './cards';
 import { dispatchEvent, EVENTS } from './events';
 import { computeEnemyMove, GUARD_SCRIPT, getNextIntent } from './enemy-ai';
+import { EnemyFormation } from './formations';
+import { RunState, PieceConfig } from './run';
 
 // ─── Opening Position ─────────────────────────────────────────────────────────
 
@@ -96,6 +99,7 @@ export function createInitialBattleState(): BattleState {
     phase: 'player_select_card',
     turn: 1,
     enemyScriptStep: 0,
+    enemyScript: GUARD_SCRIPT,
     playerHp: 20,
     maxPlayerHp: 20,
     comboCount: 0,
@@ -109,6 +113,80 @@ export function createInitialBattleState(): BattleState {
     gold: 0,
     log: ['The dungeon awaits. Draw a card and move your party.'],
     enemyIntent: GUARD_SCRIPT.steps[0].description,
+  };
+}
+
+// ─── Player starting positions (slotted layout) ───────────────────────────────
+
+const PLAYER_POSITIONS: Position[] = [
+  { row: 7, col: 4 }, // slot 0 — HERO / lead piece
+  { row: 7, col: 2 }, // slot 1
+  { row: 7, col: 6 }, // slot 2
+  { row: 6, col: 2 }, // slot 3
+  { row: 6, col: 4 }, // slot 4
+  { row: 6, col: 6 }, // slot 5
+];
+
+/**
+ * Create a BattleState initialised from the player's current run state
+ * and a specific enemy formation.
+ */
+export function createBattleFromRun(
+  runState: RunState,
+  formation: EnemyFormation,
+): BattleState {
+  // Build player pieces from PieceConfigs with assigned board positions
+  const playerPieces: Piece[] = runState.playerPieces.map((cfg, i) => ({
+    id: cfg.id,
+    type: cfg.type,
+    team: 'player' as Team,
+    position: PLAYER_POSITIONS[i] ?? { row: 7, col: i },
+    upgrades: cfg.upgrades,
+    poisoned: false,
+    hasMoved: false,
+  }));
+
+  // Build enemy pieces from the formation descriptor
+  const enemyPieces: Piece[] = formation.pieces.map((fp, i) => ({
+    id: `e_${i}_${fp.type.toLowerCase()}`,
+    type: fp.type,
+    team: 'enemy' as Team,
+    position: { row: fp.row, col: fp.col },
+    upgrades: [],
+    poisoned: false,
+    hasMoved: false,
+  }));
+
+  const pieces = [...playerPieces, ...enemyPieces];
+
+  // Use the run deck (shuffled fresh each battle)
+  const deck = shuffleDeck([...runState.deck]);
+  const { drawn: hand, newDeck } = drawCards(deck, [], 4);
+
+  return {
+    pieces,
+    board: buildEmptyBoard(),
+    playerHand: hand,
+    playerDeck: newDeck,
+    playerDiscard: [],
+    relics: runState.relics,
+    phase: 'player_select_card',
+    turn: 1,
+    enemyScriptStep: 0,
+    enemyScript: formation.script,
+    playerHp: runState.playerHp,
+    maxPlayerHp: runState.maxPlayerHp,
+    comboCount: 0,
+    consecutiveCaptures: 0,
+    selectedCardId: null,
+    selectedPieceId: null,
+    selectableSquares: [],
+    highlightedSquares: [],
+    captureSquares: [],
+    winner: null,
+    gold: 0,
+    log: [`${formation.name} — Battle begins!`],
+    enemyIntent: formation.script.steps[0].description,
   };
 }
 
@@ -263,7 +341,7 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   // Emit onTurnStart for enemy
   s = dispatchEvent(s, { type: EVENTS.ON_TURN_START });
 
-  const moveResult = computeEnemyMove(s, GUARD_SCRIPT);
+  const moveResult = computeEnemyMove(s, s.enemyScript);
 
   if (!moveResult) {
     // No enemy moves available — player wins
@@ -315,8 +393,8 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   const { drawn, newDeck, newDiscard } = drawCards(s.playerDeck, s.playerDiscard, toDraw);
 
   // Advance script step and update intent
-  const nextScriptStep = (s.enemyScriptStep + 1) % GUARD_SCRIPT.steps.length;
-  const nextIntent = GUARD_SCRIPT.steps[nextScriptStep].description;
+  const nextScriptStep = (s.enemyScriptStep + 1) % s.enemyScript.steps.length;
+  const nextIntent = s.enemyScript.steps[nextScriptStep].description;
 
   return {
     ...s,

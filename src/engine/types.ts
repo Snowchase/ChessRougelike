@@ -116,6 +116,7 @@ export interface BattleState {
   phase: BattlePhase;
   turn: number;            // increments each full round (player + enemy)
   enemyScriptStep: number; // cycles through enemy script
+  enemyScript: EnemyScript; // the script used by enemies this battle
 
   // Player vitals
   playerHp: number;

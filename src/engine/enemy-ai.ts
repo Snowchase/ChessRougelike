@@ -32,6 +32,25 @@ export const RUSHER_SCRIPT: EnemyScript = {
   ],
 };
 
+export const ELITE_SCRIPT: EnemyScript = {
+  name: 'Elite',
+  steps: [
+    { action: 'ATTACK',   description: 'The elite strikes hard!' },
+    { action: 'ADVANCE',  description: 'The elite presses forward.' },
+    { action: 'ATTACK',   description: 'The elite attacks relentlessly!' },
+  ],
+};
+
+export const BOSS_SCRIPT: EnemyScript = {
+  name: 'Warlord',
+  steps: [
+    { action: 'THREATEN', description: 'The Warlord surveys the battlefield.' },
+    { action: 'ATTACK',   description: 'The Warlord unleashes a crushing assault!' },
+    { action: 'ADVANCE',  description: 'The Warlord advances with purpose.' },
+    { action: 'ATTACK',   description: 'The Warlord strikes without mercy!' },
+  ],
+};
+
 // ─── AI Move Selection ────────────────────────────────────────────────────────
 
 interface AIMove {

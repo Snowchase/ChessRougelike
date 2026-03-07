@@ -1,16 +1,13 @@
 /**
  * battle.tsx — BattleScreen
  *
- * The core gameplay screen. Wires together:
- *   - Battle reducer (game logic)
- *   - BoardRenderer (visual board)
- *   - CardHand (move card selection)
- *   - RelicDisplay (active relics)
- *   - HUD (HP, combo, turn info, enemy intent, game log)
+ * Core gameplay screen. In run mode (when RunContext has an active run),
+ * it uses the run's formation, deck, HP, and relics. After a victory it
+ * navigates to the Reward screen and syncs gold/HP back to the run. On
+ * defeat the run ends and the player returns to the main menu.
  *
- * Phase flow:
- *   player_select_card → player_select_piece → player_select_destination
- *   → enemy_turn (auto) → player_select_card → ...
+ * When accessed without an active run (standalone / Phase 1 mode), it falls
+ * back to createInitialBattleState() — identical to Phase 1 behaviour.
  */
 
 import React, { useReducer, useEffect, useRef, useCallback } from 'react';
@@ -22,16 +19,19 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
-  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import {
   battleReducer,
   createInitialBattleState,
+  createBattleFromRun,
   BattleAction,
 } from '@/src/engine/battle';
 import { Position } from '@/src/engine/types';
+import { useRun } from '@/src/context/RunContext';
+import { findNode } from '@/src/engine/run';
+import { getFormationById } from '@/src/engine/formations';
 
 import BoardRenderer from '@/components/game/BoardRenderer';
 import CardHand from '@/components/game/CardHand';
@@ -47,11 +47,44 @@ const PHASE_LABEL: Record<string, string> = {
   battle_over:               'Battle Over',
 };
 
+// ─── Initialiser ──────────────────────────────────────────────────────────────
+
+/**
+ * Called once by useReducer. Tries to build battle state from the active run;
+ * falls back to the Phase 1 default if no run is active.
+ */
+function initBattleState(context: { run: ReturnType<typeof useRun>['run'] }) {
+  const { run } = context;
+  if (!run) return createInitialBattleState();
+
+  const currentNode = run.currentNodeId
+    ? findNode(run.map, run.currentNodeId)
+    : null;
+  const formation = currentNode?.formationId
+    ? getFormationById(currentNode.formationId)
+    : null;
+
+  if (!formation) return createInitialBattleState();
+
+  return createBattleFromRun(run, formation);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BattleScreen() {
   const router = useRouter();
-  const [state, dispatch] = useReducer(battleReducer, undefined, createInitialBattleState);
+  const { run, dispatch: runDispatch } = useRun();
+
+  // Capture the run snapshot at mount time so the battle doesn't mutate mid-fight
+  const runRef = useRef(run);
+  runRef.current = run;
+
+  const [state, dispatch] = useReducer(
+    battleReducer,
+    { run },
+    initBattleState,
+  );
+
   const logScrollRef = useRef<ScrollView>(null);
 
   // ── Auto-resolve enemy turn after a short delay ───────────────────────────
@@ -68,21 +101,52 @@ export default function BattleScreen() {
     logScrollRef.current?.scrollToEnd({ animated: true });
   }, [state.log.length]);
 
+  // ── Handle battle end ─────────────────────────────────────────────────────
+  const battleEndHandled = useRef(false);
+  useEffect(() => {
+    if (state.phase !== 'battle_over') return;
+    if (battleEndHandled.current) return;
+    battleEndHandled.current = true;
+
+    if (state.winner === 'player') {
+      // Sync results back to run state
+      if (run) {
+        runDispatch({
+          type: 'COMPLETE_BATTLE',
+          goldEarned: state.gold,
+          hpAfterBattle: state.playerHp,
+        });
+      }
+      // Navigate to reward screen after a short pause
+      const t = setTimeout(() => {
+        if (run) {
+          router.replace('/reward');
+        }
+      }, 1200);
+      return () => clearTimeout(t);
+    } else {
+      // Defeat — end the run
+      if (run) {
+        const t = setTimeout(() => {
+          runDispatch({ type: 'END_RUN' });
+          router.replace('/');
+        }, 2000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [state.phase, state.winner]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSquarePress = useCallback((position: Position) => {
-    const { phase, selectedPieceId } = state;
-
+    const { phase } = state;
     if (phase === 'player_select_piece') {
-      // Find a piece on this square
       const piece = state.pieces.find(
         p => p.team === 'player' &&
              p.position.row === position.row &&
              p.position.col === position.col,
       );
-      if (piece) {
-        dispatch({ type: 'SELECT_PIECE', pieceId: piece.id });
-      }
+      if (piece) dispatch({ type: 'SELECT_PIECE', pieceId: piece.id });
     } else if (phase === 'player_select_destination') {
       dispatch({ type: 'SELECT_DESTINATION', position });
     }
@@ -97,26 +161,33 @@ export default function BattleScreen() {
   }, []);
 
   const handleRestart = useCallback(() => {
-    dispatch({ type: 'RESTART' });
-  }, []);
+    if (run) {
+      // In run mode, restart means go back to map (battle already resolved)
+      router.replace('/map');
+    } else {
+      dispatch({ type: 'RESTART' });
+    }
+  }, [run]);
 
-  // ── Derived display values ────────────────────────────────────────────────
+  // ── Derived values ────────────────────────────────────────────────────────
 
-  const hpPercent = state.maxPlayerHp > 0
-    ? state.playerHp / state.maxPlayerHp
-    : 0;
-
+  const hpPercent = state.maxPlayerHp > 0 ? state.playerHp / state.maxPlayerHp : 0;
   const hpBarColor =
     hpPercent > 0.5 ? '#4CAF50' :
     hpPercent > 0.25 ? '#FF9800' :
     '#F44336';
 
   const phaseLabel = PHASE_LABEL[state.phase] ?? state.phase;
-  const isEnemyTurn = state.phase === 'enemy_turn';
+  const isEnemyTurn  = state.phase === 'enemy_turn';
   const isBattleOver = state.phase === 'battle_over';
 
-  const playerEnemyCount = state.pieces.filter(p => p.team === 'enemy').length;
-  const playerPieceCount = state.pieces.filter(p => p.team === 'player').length;
+  const enemyCount  = state.pieces.filter(p => p.team === 'enemy').length;
+  const playerCount = state.pieces.filter(p => p.team === 'player').length;
+
+  // Formation name for the header (if in run mode)
+  const currentNode = run?.currentNodeId ? findNode(run.map, run.currentNodeId) : null;
+  const formation   = currentNode?.formationId ? getFormationById(currentNode.formationId) : null;
+  const battleTitle = formation ? formation.name : 'Battle';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -126,20 +197,16 @@ export default function BattleScreen() {
 
       {/* ── Top HUD ─────────────────────────────────────────────────────── */}
       <View style={styles.hud}>
-        {/* Back button */}
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>← Menu</Text>
+          <Text style={styles.backBtnText}>← Map</Text>
         </TouchableOpacity>
-
         <View style={styles.hudCenter}>
-          <Text style={styles.turnText}>Turn {state.turn}</Text>
+          <Text style={styles.turnText}>{battleTitle} · Turn {state.turn}</Text>
           <Text style={styles.phaseText}>{phaseLabel}</Text>
         </View>
-
-        {/* Piece counts */}
         <View style={styles.pieceCounts}>
-          <Text style={styles.countText}>Party ×{playerPieceCount}</Text>
-          <Text style={styles.countTextEnemy}>Enemy ×{playerEnemyCount}</Text>
+          <Text style={styles.countText}>Party ×{playerCount}</Text>
+          <Text style={styles.countTextEnemy}>Enemy ×{enemyCount}</Text>
         </View>
       </View>
 
@@ -161,9 +228,7 @@ export default function BattleScreen() {
       {/* ── Board ───────────────────────────────────────────────────────── */}
       <TouchableOpacity
         activeOpacity={1}
-        onPress={
-          state.phase === 'player_select_destination' ? handleDeselect : undefined
-        }
+        onPress={state.phase === 'player_select_destination' ? handleDeselect : undefined}
       >
         <BoardRenderer state={state} onSquarePress={handleSquarePress} />
       </TouchableOpacity>
@@ -200,19 +265,29 @@ export default function BattleScreen() {
           </Text>
           <Text style={styles.overlaySubtitle}>
             {state.winner === 'player'
-              ? `You earned ${state.gold} gold!`
-              : 'Your Hero has fallen.'}
+              ? run
+                ? `You earned ${state.gold} gold! Preparing rewards…`
+                : `You earned ${state.gold} gold!`
+              : run
+                ? 'Your run has ended.'
+                : 'Your Hero has fallen.'}
           </Text>
-          <TouchableOpacity style={styles.restartBtn} onPress={handleRestart}>
-            <Text style={styles.restartBtnText}>Play Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuBtn} onPress={() => router.back()}>
-            <Text style={styles.menuBtnText}>Main Menu</Text>
-          </TouchableOpacity>
+
+          {/* Only show replay buttons in standalone mode */}
+          {!run && (
+            <>
+              <TouchableOpacity style={styles.restartBtn} onPress={handleRestart}>
+                <Text style={styles.restartBtnText}>Play Again</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuBtn} onPress={() => router.replace('/')}>
+                <Text style={styles.menuBtnText}>Main Menu</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
-      {/* ── Deselect helper text ─────────────────────────────────────────── */}
+      {/* ── Deselect hint ────────────────────────────────────────────────── */}
       {(state.phase === 'player_select_piece' || state.phase === 'player_select_destination') && (
         <TouchableOpacity style={styles.deselectHint} onPress={handleDeselect}>
           <Text style={styles.deselectHintText}>
@@ -233,8 +308,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111118',
   },
-
-  // HUD
   hud: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,8 +354,6 @@ const styles = StyleSheet.create({
     color: '#cc5555',
     fontSize: 12,
   },
-
-  // HP bar
   hpRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -317,8 +388,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-
-  // Intent banner
   intentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,8 +407,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-
-  // Log
   logContainer: {
     height: 60,
     backgroundColor: '#0d0d1a',
@@ -356,11 +423,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
   },
-
-  // Battle over overlay
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
@@ -376,6 +441,8 @@ const styles = StyleSheet.create({
     color: '#ccc',
     fontSize: 18,
     textAlign: 'center',
+    maxWidth: 280,
+    lineHeight: 26,
   },
   restartBtn: {
     backgroundColor: '#FFD700',
@@ -400,8 +467,6 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 15,
   },
-
-  // Deselect hint
   deselectHint: {
     alignItems: 'center',
     paddingVertical: 2,

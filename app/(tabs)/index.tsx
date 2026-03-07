@@ -1,8 +1,7 @@
 /**
  * index.tsx — Main Menu
  *
- * Entry point for the game. Presents the title and a "New Run" button
- * that navigates to the BattleScreen.
+ * Entry point. "New Run" navigates to Class Select to start a Phase 2 run.
  */
 
 import React from 'react';
@@ -14,9 +13,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useRun } from '@/src/context/RunContext';
 
 export default function MainMenuScreen() {
   const router = useRouter();
+  const { run } = useRun();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -33,13 +34,32 @@ export default function MainMenuScreen() {
 
         {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => router.push('/battle')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryBtnText}>⚔ New Run</Text>
-          </TouchableOpacity>
+          {run?.isRunActive ? (
+            <>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => router.push('/map')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.primaryBtnText}>▶ Continue Run</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() => router.push('/class-select')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.secondaryBtnText}>⚔ New Run (abandon current)</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => router.push('/class-select')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryBtnText}>⚔ New Run</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.secondaryBtn}
@@ -50,19 +70,19 @@ export default function MainMenuScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Phase 1 info */}
+        {/* Phase badge */}
         <View style={styles.versionBadge}>
-          <Text style={styles.versionText}>Phase 1 — Core Engine</Text>
-          <Text style={styles.versionSubtext}>One playable battle end-to-end</Text>
+          <Text style={styles.versionText}>Phase 2 — Run Structure</Text>
+          <Text style={styles.versionSubtext}>Class Select · Map · Battles · Rewards · Shop</Text>
         </View>
 
         {/* Legend */}
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>How to play</Text>
-          <Text style={styles.legendItem}>1. Select a card from your hand.</Text>
-          <Text style={styles.legendItem}>2. Tap one of your matching pieces.</Text>
-          <Text style={styles.legendItem}>3. Tap a highlighted square to move.</Text>
-          <Text style={styles.legendItem}>4. Chain captures to build your combo!</Text>
+          <Text style={styles.legendItem}>1. Choose your starting class.</Text>
+          <Text style={styles.legendItem}>2. Navigate the map — fight, shop, rest.</Text>
+          <Text style={styles.legendItem}>3. Play cards to move pieces; chain captures.</Text>
+          <Text style={styles.legendItem}>4. Draft new cards and relics after each fight!</Text>
         </View>
 
       </View>
