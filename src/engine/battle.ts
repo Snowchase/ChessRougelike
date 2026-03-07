@@ -210,6 +210,256 @@ function checkOutcome(pieces: Piece[]): Team | null {
   return null;
 }
 
+// ─── Ability card helpers ─────────────────────────────────────────────────────
+
+/** Effects that use standard move-generation. All others are abilities. */
+const MOVEMENT_EFFECTS = new Set<string>([
+  'NORMAL', 'CHAIN', 'DIAGONAL_SWEEP', 'CASTLE', 'GAMBIT',
+]);
+
+function isAbilityEffect(effect: string): boolean {
+  return !MOVEMENT_EFFECTS.has(effect);
+}
+
+function inBounds(r: number, c: number): boolean {
+  return r >= 0 && r < 8 && c >= 0 && c < 8;
+}
+
+/** Slide a piece `dist` squares in direction (dr, dc), stopping at edges, walls, or pieces. */
+function slidePush(
+  pieces: Piece[],
+  board: Tile[][],
+  targetId: string,
+  dr: number,
+  dc: number,
+  dist: number,
+): Piece[] {
+  const target = pieces.find(p => p.id === targetId);
+  if (!target) return pieces;
+  let r = target.position.row;
+  let c = target.position.col;
+  for (let i = 0; i < dist; i++) {
+    const nr = r + dr;
+    const nc = c + dc;
+    if (!inBounds(nr, nc)) break;
+    if (board[nr][nc].type === 'WALL') break;
+    if (pieceAt(pieces, nr, nc)) break;
+    r = nr; c = nc;
+  }
+  return pieces.map(p =>
+    p.id === targetId ? { ...p, position: { row: r, col: c } } : p,
+  );
+}
+
+/** Pull a piece up to `dist` squares toward `toward`, stopping when adjacent or blocked. */
+function slidePull(
+  pieces: Piece[],
+  board: Tile[][],
+  targetId: string,
+  toward: Position,
+  dist: number,
+): Piece[] {
+  const target = pieces.find(p => p.id === targetId);
+  if (!target) return pieces;
+  const dr = Math.sign(toward.row - target.position.row);
+  const dc = Math.sign(toward.col - target.position.col);
+  let r = target.position.row;
+  let c = target.position.col;
+  for (let i = 0; i < dist; i++) {
+    const nr = r + dr;
+    const nc = c + dc;
+    if (nr === toward.row && nc === toward.col) break; // don't land on caster
+    if (!inBounds(nr, nc)) break;
+    if (board[nr][nc].type === 'WALL') break;
+    if (pieceAt(pieces, nr, nc)) break;
+    r = nr; c = nc;
+  }
+  return pieces.map(p =>
+    p.id === targetId ? { ...p, position: { row: r, col: c } } : p,
+  );
+}
+
+/** Compute valid target squares for an ability card after a piece is selected. */
+function computeAbilityTargets(
+  state: BattleState,
+  piece: Piece,
+  card: MoveCard,
+): { abMoves: Position[]; abCaptures: Position[] } {
+  const { row, col } = piece.position;
+  const range = card.abilityPower ?? 3;
+
+  switch (card.effect) {
+    case 'PUSH': {
+      // All immediately adjacent (8-directional) enemy squares
+      const abCaptures: Position[] = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const r = row + dr; const c = col + dc;
+          if (!inBounds(r, c)) continue;
+          const p = pieceAt(state.pieces, r, c);
+          if (p && p.team === 'enemy') abCaptures.push({ row: r, col: c });
+        }
+      }
+      return { abMoves: [], abCaptures };
+    }
+
+    case 'PULL': {
+      // Enemies on straight/diagonal lines within `range`, blocked by walls/pieces
+      const abCaptures: Position[] = [];
+      const DIRS = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+      for (const [dr, dc] of DIRS) {
+        for (let step = 1; step <= range; step++) {
+          const r = row + dr * step; const c = col + dc * step;
+          if (!inBounds(r, c)) break;
+          if (state.board[r][c].type === 'WALL') break;
+          const p = pieceAt(state.pieces, r, c);
+          if (p) {
+            if (p.team === 'enemy') abCaptures.push({ row: r, col: c });
+            break;
+          }
+        }
+      }
+      return { abMoves: [], abCaptures };
+    }
+
+    case 'TELEPORT': {
+      // Empty squares within Manhattan distance ≤ range
+      const abMoves: Position[] = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const dist = Math.abs(r - row) + Math.abs(c - col);
+          if (dist === 0 || dist > range) continue;
+          if (state.board[r][c].type === 'WALL') continue;
+          if (!pieceAt(state.pieces, r, c)) abMoves.push({ row: r, col: c });
+        }
+      }
+      return { abMoves, abCaptures: [] };
+    }
+
+    case 'SWAP_ALLY': {
+      const abMoves = state.pieces
+        .filter(p => p.team === 'player' && p.id !== piece.id)
+        .map(p => p.position);
+      return { abMoves, abCaptures: [] };
+    }
+
+    default:
+      return { abMoves: [], abCaptures: [] };
+  }
+}
+
+/** Execute a targeted ability (PUSH / PULL / TELEPORT / SWAP_ALLY). */
+function executeAbility(
+  state: BattleState,
+  piece: Piece,
+  target: Position,
+  card: MoveCard,
+): BattleState {
+  let s = { ...state };
+  const power = card.abilityPower ?? 2;
+  let logMsg = '';
+
+  switch (card.effect) {
+    case 'PUSH': {
+      const enemy = pieceAt(s.pieces, target.row, target.col);
+      if (!enemy || enemy.team !== 'enemy') return state;
+      const dr = Math.sign(target.row - piece.position.row);
+      const dc = Math.sign(target.col - piece.position.col);
+      s = { ...s, pieces: slidePush(s.pieces, s.board, enemy.id, dr, dc, power) };
+      logMsg = `${piece.type} shoved ${enemy.type} ${power} sq away!`;
+      break;
+    }
+    case 'PULL': {
+      const enemy = pieceAt(s.pieces, target.row, target.col);
+      if (!enemy || enemy.team !== 'enemy') return state;
+      s = { ...s, pieces: slidePull(s.pieces, s.board, enemy.id, piece.position, power) };
+      logMsg = `${piece.type} yanked ${enemy.type} ${power} steps closer!`;
+      break;
+    }
+    case 'TELEPORT': {
+      if (pieceAt(s.pieces, target.row, target.col)) return state;
+      s = {
+        ...s,
+        pieces: s.pieces.map(p =>
+          p.id === piece.id ? { ...p, position: target, hasMoved: true } : p,
+        ),
+      };
+      logMsg = `${piece.type} blinked to (${target.row + 1},${target.col + 1})!`;
+      break;
+    }
+    case 'SWAP_ALLY': {
+      const ally = pieceAt(s.pieces, target.row, target.col);
+      if (!ally || ally.team !== 'player' || ally.id === piece.id) return state;
+      s = {
+        ...s,
+        pieces: s.pieces.map(p => {
+          if (p.id === piece.id) return { ...p, position: target };
+          if (p.id === ally.id) return { ...p, position: piece.position };
+          return p;
+        }),
+      };
+      logMsg = `${piece.type} swapped places with ${ally.type}!`;
+      break;
+    }
+    default:
+      return state;
+  }
+
+  s = applyCardCost(s, card);
+
+  return {
+    ...s,
+    log: [...s.log, logMsg],
+    playerHand: s.playerHand.filter(c => c.id !== card.id),
+    playerDiscard: [...s.playerDiscard, card],
+    selectedCardId: null,
+    selectedPieceId: null,
+    selectableSquares: [],
+    highlightedSquares: [],
+    captureSquares: [],
+    phase: s.phase === 'battle_over' ? 'battle_over' : 'enemy_turn',
+  };
+}
+
+/** Execute REPULSE — instant AoE, called directly from SELECT_PIECE. */
+function executeRepulse(state: BattleState, piece: Piece, card: MoveCard): BattleState {
+  let s = { ...state };
+  const power = card.abilityPower ?? 2;
+
+  const adjacent = s.pieces.filter(p =>
+    p.team === 'enemy' &&
+    Math.abs(p.position.row - piece.position.row) <= 1 &&
+    Math.abs(p.position.col - piece.position.col) <= 1 &&
+    !(p.position.row === piece.position.row && p.position.col === piece.position.col),
+  );
+
+  for (const enemy of adjacent) {
+    const dr = Math.sign(enemy.position.row - piece.position.row);
+    const dc = Math.sign(enemy.position.col - piece.position.col);
+    s = { ...s, pieces: slidePush(s.pieces, s.board, enemy.id, dr, dc, power) };
+  }
+
+  const logMsg = adjacent.length > 0
+    ? `${piece.type} burst: pushed ${adjacent.length} enemies outward!`
+    : `${piece.type} burst: no adjacent enemies.`;
+
+  s = applyCardCost(s, card);
+
+  return {
+    ...s,
+    log: [...s.log, logMsg],
+    playerHand: s.playerHand.filter(c => c.id !== card.id),
+    playerDiscard: [...s.playerDiscard, card],
+    selectedCardId: null,
+    selectedPieceId: null,
+    selectableSquares: [],
+    highlightedSquares: [],
+    captureSquares: [],
+    phase: s.phase === 'battle_over' ? 'battle_over' : 'enemy_turn',
+  };
+}
+
 // ─── Helper: apply HP cost for card effects ───────────────────────────────────
 
 function applyCardCost(state: BattleState, card: MoveCard): BattleState {
@@ -479,6 +729,31 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       );
       if (!piece) return state;
 
+      // ── Instant ability: REPULSE fires immediately, no target selection ──
+      if (card.effect === 'REPULSE') {
+        return executeRepulse(state, piece, card);
+      }
+
+      // ── Targeted ability: compute valid targets instead of legal moves ──
+      if (isAbilityEffect(card.effect)) {
+        const { abMoves, abCaptures } = computeAbilityTargets(state, piece, card);
+        if (abMoves.length === 0 && abCaptures.length === 0) {
+          return {
+            ...state,
+            log: [...state.log, `${piece.type}: no valid targets for ${card.name}.`],
+          };
+        }
+        return {
+          ...state,
+          selectedPieceId: piece.id,
+          selectableSquares: [],
+          highlightedSquares: abMoves,
+          captureSquares: abCaptures,
+          phase: 'player_select_destination',
+        };
+      }
+
+      // ── Standard movement card ──
       const { moves, captures } = classifyMoves(piece, state.pieces, state.board);
 
       if (moves.length === 0 && captures.length === 0) {
@@ -513,7 +788,7 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       ].some(sq => sq.row === row && sq.col === col);
 
       if (!isValidMove) {
-        // Tap on invalid square — go back to card selection
+        // Tap on invalid square — go back to piece selection
         return {
           ...state,
           selectedPieceId: null,
@@ -521,6 +796,11 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
           captureSquares: [],
           phase: 'player_select_piece',
         };
+      }
+
+      // Route to ability execution or standard movement
+      if (isAbilityEffect(card.effect)) {
+        return executeAbility(state, piece, action.position, card);
       }
 
       return executePlayerMove(state, piece, action.position, card);

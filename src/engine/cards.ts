@@ -119,6 +119,70 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'common',
     description: 'One step, any dir.',
   },
+
+  // ── Ability Cards ──────────────────────────────────────────────────────────
+  // These cards manipulate piece positions rather than making captures.
+
+  {
+    id: 'shove',
+    pieceType: 'BRAWLER',
+    name: 'Shove',
+    baseDamage: 0,
+    effect: 'PUSH',
+    rarity: 'uncommon',
+    description: 'Push an adjacent enemy 2 squares away.',
+    abilityPower: 2,
+  },
+  {
+    id: 'stand_fast',
+    pieceType: 'GUARDIAN',
+    name: 'Stand Fast',
+    baseDamage: 0,
+    effect: 'PUSH',
+    rarity: 'uncommon',
+    description: 'Slam an adjacent enemy 3 squares away.',
+    abilityPower: 3,
+  },
+  {
+    id: 'smoke_step',
+    pieceType: 'ROGUE',
+    name: 'Smoke Step',
+    baseDamage: 0,
+    effect: 'TELEPORT',
+    rarity: 'common',
+    description: 'Vanish and reappear within 3 tiles.',
+    abilityPower: 3,
+  },
+  {
+    id: 'switcheroo',
+    pieceType: 'ROGUE',
+    name: 'Switcheroo',
+    baseDamage: 0,
+    effect: 'SWAP_ALLY',
+    rarity: 'rare',
+    description: 'Swap positions with any ally.',
+  },
+  {
+    id: 'lasso',
+    pieceType: 'RANGER',
+    name: 'Lasso',
+    baseDamage: 0,
+    effect: 'PULL',
+    rarity: 'uncommon',
+    description: 'Yank any enemy in sight 2 steps closer.',
+    abilityPower: 2,
+  },
+  {
+    id: 'arcane_burst',
+    pieceType: 'WITCH',
+    name: 'Arcane Burst',
+    baseDamage: 0,
+    effect: 'REPULSE',
+    rarity: 'uncommon',
+    description: 'Push ALL adjacent enemies 2 sq. -2 HP.',
+    hpCost: 2,
+    abilityPower: 2,
+  },
 ];
 
 // ─── Starting Deck Builder ────────────────────────────────────────────────────

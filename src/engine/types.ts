@@ -3,7 +3,19 @@
 export type PieceType = 'ROGUE' | 'BRAWLER' | 'RANGER' | 'GUARDIAN' | 'WITCH' | 'HERO';
 export type Team = 'player' | 'enemy';
 export type UpgradeType = 'VETERAN' | 'NIGHTMARE' | 'SIEGE' | 'DARK_RANGER';
-export type CardEffect = 'NORMAL' | 'CHAIN' | 'DIAGONAL_SWEEP' | 'CASTLE' | 'GAMBIT';
+export type CardEffect =
+  // ── Movement effects ─────────────────────────────────────────
+  | 'NORMAL'          // standard move/capture
+  | 'CHAIN'           // move then strike diagonally
+  | 'DIAGONAL_SWEEP'  // sweep all diagonals
+  | 'CASTLE'          // rook march / swap
+  | 'GAMBIT'          // any-direction, costs HP
+  // ── Ability effects (no standard movement) ──────────────────
+  | 'PUSH'            // shove a selected adjacent enemy N squares away
+  | 'PULL'            // yank a distant enemy N squares closer
+  | 'TELEPORT'        // reposition this piece to any empty square in range
+  | 'SWAP_ALLY'       // swap positions with a friendly piece
+  | 'REPULSE';        // instant AoE — push ALL adjacent enemies away
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
 export type EventType =
@@ -54,7 +66,8 @@ export interface MoveCard {
   effect: CardEffect;
   rarity: Rarity;
   description: string;
-  hpCost?: number;  // for Gambit-style cards
+  hpCost?: number;       // for Gambit-style cards
+  abilityPower?: number; // for ability cards: push distance, pull distance, teleport range
 }
 
 // ─── Relics ───────────────────────────────────────────────────────────────────

@@ -15,7 +15,21 @@ import {
   ScrollView,
 } from 'react-native';
 
-import { MoveCard, BattleState, PieceType } from '@/src/engine/types';
+import { MoveCard, BattleState, PieceType, CardEffect } from '@/src/engine/types';
+
+// ─── Ability card labels & colours ───────────────────────────────────────────
+
+const ABILITY_EFFECTS = new Set<CardEffect>([
+  'PUSH', 'PULL', 'TELEPORT', 'SWAP_ALLY', 'REPULSE',
+]);
+
+const ABILITY_LABEL: Partial<Record<CardEffect, string>> = {
+  PUSH:      '↗ Push',
+  PULL:      '↙ Pull',
+  TELEPORT:  '✦ Blink',
+  SWAP_ALLY: '⇄ Swap',
+  REPULSE:   '❋ Burst',
+};
 
 // ─── Piece colours & labels ───────────────────────────────────────────────────
 
@@ -96,8 +110,14 @@ export default function CardHand({ state, onCardSelect }: CardHandProps) {
               {/* Card name */}
               <Text style={styles.cardName} numberOfLines={2}>{card.name}</Text>
 
-              {/* Damage */}
-              <Text style={styles.damage}>⚔ {card.baseDamage}</Text>
+              {/* Damage or ability tag */}
+              {ABILITY_EFFECTS.has(card.effect) ? (
+                <Text style={styles.abilityTag}>
+                  {ABILITY_LABEL[card.effect] ?? card.effect}
+                </Text>
+              ) : (
+                <Text style={styles.damage}>⚔ {card.baseDamage}</Text>
+              )}
 
               {/* HP cost if any */}
               {card.hpCost ? (
@@ -185,6 +205,12 @@ const styles = StyleSheet.create({
     color: '#FF9999',
     fontSize: 12,
     fontWeight: '600',
+  },
+  abilityTag: {
+    color: '#7EC8E3',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   hpCost: {
     color: '#FF4444',
