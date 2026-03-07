@@ -134,7 +134,7 @@ export default function RewardScreen() {
         {step === 'upgrade_pick' && (
           <>
             {upgradePool.map(opt => (
-              <UpgradeOption key={opt.upgrade} opt={opt} onPick={() => handlePickUpgrade(opt)} />
+              <UpgradeOptionCard key={opt.upgrade} opt={opt} onPick={() => handlePickUpgrade(opt)} />
             ))}
             <TouchableOpacity style={styles.skipBtn} onPress={handleSkipUpgrade}>
               <Text style={styles.skipBtnText}>Skip Upgrade</Text>
@@ -177,7 +177,7 @@ function CardOption({ card, onPick }: { card: MoveCard; onPick: () => void }) {
 
 // ─── Upgrade option card ──────────────────────────────────────────────────────
 
-function UpgradeOption({ opt, onPick }: { opt: UpgradeOption; onPick: () => void }) {
+function UpgradeOptionCard({ opt, onPick }: { opt: UpgradeOption; onPick: () => void }) {
   return (
     <TouchableOpacity style={[styles.optionCard, { borderColor: '#f39c12' }]} onPress={onPick} activeOpacity={0.8}>
       <Text style={styles.upgradeName}>{opt.name}</Text>
