@@ -233,15 +233,7 @@ export default function BattleScreen() {
       {/* ── Relics ──────────────────────────────────────────────────────── */}
       <RelicDisplay relics={state.relics} />
 
-      {/* ── Board ───────────────────────────────────────────────────────── */}
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={state.phase === 'player_select_destination' ? handleDeselect : undefined}
-      >
-        <BoardRenderer state={state} onSquarePress={handleSquarePress} />
-      </TouchableOpacity>
-
-      {/* ── Level Type / Win Condition Banner ────────────────────────────── */}
+      {/* ── Level Type / Win Condition Banner (above board) ──────────────── */}
       {state.levelType && state.levelType !== 'skirmish' && (
         <View style={[
           styles.winConditionBanner,
@@ -263,6 +255,14 @@ export default function BattleScreen() {
           )}
         </View>
       )}
+
+      {/* ── Board ───────────────────────────────────────────────────────── */}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={state.phase === 'player_select_destination' ? handleDeselect : undefined}
+      >
+        <BoardRenderer state={state} onSquarePress={handleSquarePress} />
+      </TouchableOpacity>
 
       {/* ── Enemy Intent Banner ──────────────────────────────────────────── */}
       <View style={styles.intentBanner}>

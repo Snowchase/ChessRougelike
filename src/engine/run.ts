@@ -15,6 +15,9 @@ import {
   NORMAL_FORMATIONS,
   ELITE_FORMATIONS,
   BOSS_FORMATION,
+  GAUNTLET_FORMATION,
+  CORRIDOR_FORMATION,
+  LAVA_PIT_FORMATION,
   EnemyFormation,
   ALL_FORMATIONS,
 } from './formations';
@@ -172,7 +175,13 @@ function makeNode(
  *   Row 5: Boss
  */
 function generateAct1Map(): MapNode[][] {
-  const normals = shuffleArray([...NORMAL_FORMATIONS]);
+  // Special-level formations rotate into the normal fight pool so players encounter them
+  const normals = shuffleArray([
+    ...NORMAL_FORMATIONS,
+    GAUNTLET_FORMATION,
+    CORRIDOR_FORMATION,
+    LAVA_PIT_FORMATION,
+  ]);
   const elites  = shuffleArray([...ELITE_FORMATIONS]);
   let nIdx = 0;
   let eIdx = 0;
