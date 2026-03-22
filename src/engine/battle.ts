@@ -20,9 +20,13 @@ import {
   Position,
   Team,
   Tile,
+  TileType,
   RelicInstance,
   MoveCard,
   EnemyScript,
+  LevelType,
+  WinCondition,
+  BoardLayout,
 } from './types';
 import { classifyMoves, pieceAt } from './moves';
 import { buildStartingDeck, drawCards, shuffleDeck } from './cards';
@@ -64,11 +68,19 @@ function buildOpeningPieces(): Piece[] {
   ];
 }
 
-/** Build an 8×8 grid of FLOOR tiles (default empty dungeon). */
-function buildEmptyBoard(): Tile[][] {
-  return Array.from({ length: 8 }, () =>
-    Array.from({ length: 8 }, () => ({ type: 'FLOOR' as const })),
+/** Build a rows×cols grid of FLOOR tiles, with optional tile overrides. */
+function buildBoard(rows: number, cols: number, layout?: BoardLayout): Tile[][] {
+  const board: Tile[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ type: 'FLOOR' as const })),
   );
+  if (layout?.tiles) {
+    for (const { row, col, type } of layout.tiles) {
+      if (board[row]?.[col] !== undefined) {
+        board[row][col] = { type: type as TileType };
+      }
+    }
+  }
+  return board;
 }
 
 const STARTING_RELICS: RelicInstance[] = [
@@ -91,7 +103,12 @@ export function createInitialBattleState(): BattleState {
 
   return {
     pieces,
-    board: buildEmptyBoard(),
+    board: buildBoard(8, 8),
+    rows: 8,
+    cols: 8,
+    levelType: 'skirmish' as LevelType,
+    winCondition: { type: 'eliminate_all' } as WinCondition,
+    gauntletTurnsLeft: -1,
     playerHand: hand,
     playerDeck: newDeck,
     playerDiscard: [],
@@ -116,16 +133,23 @@ export function createInitialBattleState(): BattleState {
   };
 }
 
-// ─── Player starting positions (slotted layout) ───────────────────────────────
+// ─── Player starting positions (dynamic, bottom of board) ────────────────────
 
-const PLAYER_POSITIONS: Position[] = [
-  { row: 7, col: 4 }, // slot 0 — HERO / lead piece
-  { row: 7, col: 2 }, // slot 1
-  { row: 7, col: 6 }, // slot 2
-  { row: 6, col: 2 }, // slot 3
-  { row: 6, col: 4 }, // slot 4
-  { row: 6, col: 6 }, // slot 5
-];
+/** Compute player spawn positions relative to the bottom of a rows×cols board. */
+function getPlayerPositions(rows: number, cols: number): Position[] {
+  const bot = rows - 1;
+  const sec = rows - 2;
+  const mid = Math.floor((cols - 1) / 2);
+  const clamp = (v: number) => Math.max(0, Math.min(cols - 1, v));
+  return [
+    { row: bot, col: clamp(mid) },      // slot 0 — HERO / lead piece
+    { row: bot, col: clamp(mid - 2) },  // slot 1
+    { row: bot, col: clamp(mid + 2) },  // slot 2
+    { row: sec, col: clamp(mid - 2) },  // slot 3
+    { row: sec, col: clamp(mid) },      // slot 4
+    { row: sec, col: clamp(mid + 2) },  // slot 5
+  ];
+}
 
 /**
  * Create a BattleState initialised from the player's current run state
@@ -135,12 +159,20 @@ export function createBattleFromRun(
   runState: RunState,
   formation: EnemyFormation,
 ): BattleState {
+  const rows = formation.layout?.rows ?? 8;
+  const cols = formation.layout?.cols ?? 8;
+  const levelType: LevelType = formation.levelType ?? 'skirmish';
+  const winCondition: WinCondition = formation.winCondition ?? { type: 'eliminate_all' };
+  const gauntletTurnsLeft = winCondition.type === 'survive_turns' ? winCondition.turns : -1;
+
+  const playerPositions = getPlayerPositions(rows, cols);
+
   // Build player pieces from PieceConfigs with assigned board positions
   const playerPieces: Piece[] = runState.playerPieces.map((cfg, i) => ({
     id: cfg.id,
     type: cfg.type,
     team: 'player' as Team,
-    position: PLAYER_POSITIONS[i] ?? { row: 7, col: i },
+    position: playerPositions[i] ?? { row: rows - 1, col: i },
     upgrades: cfg.upgrades,
     poisoned: false,
     hasMoved: false,
@@ -165,7 +197,12 @@ export function createBattleFromRun(
 
   return {
     pieces,
-    board: buildEmptyBoard(),
+    board: buildBoard(rows, cols, formation.layout),
+    rows,
+    cols,
+    levelType,
+    winCondition,
+    gauntletTurnsLeft,
     playerHand: hand,
     playerDeck: newDeck,
     playerDiscard: [],
@@ -202,12 +239,19 @@ export type BattleAction =
 
 // ─── Helper: check win/loss ───────────────────────────────────────────────────
 
-function checkOutcome(pieces: Piece[]): Team | null {
-  const enemyAlive = pieces.some(p => p.team === 'enemy');
-  const playerHeroAlive = pieces.some(p => p.team === 'player' && p.type === 'HERO');
-  if (!enemyAlive) return 'player';
+function checkWinCondition(state: BattleState): Team | null {
+  const playerHeroAlive = state.pieces.some(p => p.team === 'player' && p.type === 'HERO');
   if (!playerHeroAlive) return 'enemy';
-  return null;
+
+  switch (state.winCondition.type) {
+    case 'eliminate_all': {
+      const enemyAlive = state.pieces.some(p => p.team === 'enemy');
+      return enemyAlive ? null : 'player';
+    }
+    case 'survive_turns': {
+      return state.gauntletTurnsLeft <= 0 ? 'player' : null;
+    }
+  }
 }
 
 // ─── Ability card helpers ─────────────────────────────────────────────────────
@@ -221,8 +265,8 @@ function isAbilityEffect(effect: string): boolean {
   return !MOVEMENT_EFFECTS.has(effect);
 }
 
-function inBounds(r: number, c: number): boolean {
-  return r >= 0 && r < 8 && c >= 0 && c < 8;
+function inBounds(r: number, c: number, rows: number, cols: number): boolean {
+  return r >= 0 && r < rows && c >= 0 && c < cols;
 }
 
 /** Slide a piece `dist` squares in direction (dr, dc), stopping at edges, walls, or pieces. */
@@ -234,6 +278,8 @@ function slidePush(
   dc: number,
   dist: number,
 ): Piece[] {
+  const rows = board.length;
+  const cols = board[0]?.length ?? 8;
   const target = pieces.find(p => p.id === targetId);
   if (!target) return pieces;
   let r = target.position.row;
@@ -241,7 +287,7 @@ function slidePush(
   for (let i = 0; i < dist; i++) {
     const nr = r + dr;
     const nc = c + dc;
-    if (!inBounds(nr, nc)) break;
+    if (!inBounds(nr, nc, rows, cols)) break;
     if (board[nr][nc].type === 'WALL') break;
     if (pieceAt(pieces, nr, nc)) break;
     r = nr; c = nc;
@@ -259,6 +305,8 @@ function slidePull(
   toward: Position,
   dist: number,
 ): Piece[] {
+  const rows = board.length;
+  const cols = board[0]?.length ?? 8;
   const target = pieces.find(p => p.id === targetId);
   if (!target) return pieces;
   const dr = Math.sign(toward.row - target.position.row);
@@ -269,7 +317,7 @@ function slidePull(
     const nr = r + dr;
     const nc = c + dc;
     if (nr === toward.row && nc === toward.col) break; // don't land on caster
-    if (!inBounds(nr, nc)) break;
+    if (!inBounds(nr, nc, rows, cols)) break;
     if (board[nr][nc].type === 'WALL') break;
     if (pieceAt(pieces, nr, nc)) break;
     r = nr; c = nc;
@@ -296,7 +344,7 @@ function computeAbilityTargets(
         for (let dc = -1; dc <= 1; dc++) {
           if (dr === 0 && dc === 0) continue;
           const r = row + dr; const c = col + dc;
-          if (!inBounds(r, c)) continue;
+          if (!inBounds(r, c, state.rows, state.cols)) continue;
           const p = pieceAt(state.pieces, r, c);
           if (p && p.team === 'enemy') abCaptures.push({ row: r, col: c });
         }
@@ -311,7 +359,7 @@ function computeAbilityTargets(
       for (const [dr, dc] of DIRS) {
         for (let step = 1; step <= range; step++) {
           const r = row + dr * step; const c = col + dc * step;
-          if (!inBounds(r, c)) break;
+          if (!inBounds(r, c, state.rows, state.cols)) break;
           if (state.board[r][c].type === 'WALL') break;
           const p = pieceAt(state.pieces, r, c);
           if (p) {
@@ -326,8 +374,8 @@ function computeAbilityTargets(
     case 'TELEPORT': {
       // Empty squares within Manhattan distance ≤ range
       const abMoves: Position[] = [];
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
+      for (let r = 0; r < state.rows; r++) {
+        for (let c = 0; c < state.cols; c++) {
           const dist = Math.abs(r - row) + Math.abs(c - col);
           if (dist === 0 || dist > range) continue;
           if (state.board[r][c].type === 'WALL') continue;
@@ -502,6 +550,22 @@ function executePlayerMove(
       ),
   };
 
+  // 3b. LAVA hazard — piece takes 1 damage when landing on lava
+  const landedTile = s.board[destination.row]?.[destination.col];
+  if (landedTile?.type === 'LAVA') {
+    const newHp = Math.max(0, s.playerHp - 1);
+    s = {
+      ...s,
+      playerHp: newHp,
+      log: [...s.log, `${piece.type} stepped on lava! (−1 HP)`],
+      winner: newHp <= 0 ? ('enemy' as Team) : s.winner,
+      phase: newHp <= 0 ? 'battle_over' : s.phase,
+    };
+    if (newHp <= 0) {
+      return { ...s, log: [...s.log, 'Defeat! Your Hero has burned.'] };
+    }
+  }
+
   // 4. Emit onLand
   s = dispatchEvent(s, {
     type: EVENTS.ON_LAND,
@@ -566,16 +630,19 @@ function executePlayerMove(
   };
 
   // 9. Check outcome
-  const outcome = checkOutcome(s.pieces);
+  const outcome = checkWinCondition(s);
   if (outcome) {
     if (outcome === 'player') {
       s = dispatchEvent(s, { type: EVENTS.ON_BATTLE_WIN });
     }
+    const victoryMsg = s.winCondition.type === 'survive_turns'
+      ? 'Victory! You survived the onslaught!'
+      : 'Victory! All enemies slain!';
     return {
       ...s,
       winner: outcome,
       phase: 'battle_over',
-      log: [...s.log, outcome === 'player' ? 'Victory! All enemies slain!' : 'Defeat! Your Hero has fallen.'],
+      log: [...s.log, outcome === 'player' ? victoryMsg : 'Defeat! Your Hero has fallen.'],
     };
   }
 
@@ -626,14 +693,22 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   // Emit onTurnEnd
   s = dispatchEvent(s, { type: EVENTS.ON_TURN_END });
 
+  // Decrement gauntlet timer
+  if (s.winCondition.type === 'survive_turns' && s.gauntletTurnsLeft > 0) {
+    s = { ...s, gauntletTurnsLeft: s.gauntletTurnsLeft - 1 };
+  }
+
   // Check outcome
-  const outcome = checkOutcome(s.pieces);
+  const outcome = checkWinCondition(s);
   if (outcome) {
+    const victoryMsg = s.winCondition.type === 'survive_turns'
+      ? 'Victory! You survived the onslaught!'
+      : 'Victory!';
     return {
       ...s,
       winner: outcome,
       phase: 'battle_over',
-      log: [...s.log, outcome === 'player' ? 'Victory!' : 'Defeat! Your Hero has fallen.'],
+      log: [...s.log, outcome === 'player' ? victoryMsg : 'Defeat! Your Hero has fallen.'],
     };
   }
 

@@ -17,8 +17,8 @@ import { Piece, PieceType, Position, Team, Tile } from './types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function inBounds(row: number, col: number): boolean {
-  return row >= 0 && row < 8 && col >= 0 && col < 8;
+function inBounds(row: number, col: number, rows: number = 8, cols: number = 8): boolean {
+  return row >= 0 && row < rows && col >= 0 && col < cols;
 }
 
 export function pieceAt(pieces: Piece[], row: number, col: number): Piece | undefined {
@@ -47,11 +47,13 @@ function slide(
   dc: number,
   team: Team,
 ): Position[] {
+  const bRows = board.length;
+  const bCols = board[0]?.length ?? 8;
   const moves: Position[] = [];
   const opp: Team = team === 'player' ? 'enemy' : 'player';
   let nr = row + dr;
   let nc = col + dc;
-  while (inBounds(nr, nc)) {
+  while (inBounds(nr, nc, bRows, bCols)) {
     if (isWall(board, nr, nc)) break;              // wall blocks entry and sight
     if (occupiedBy(pieces, nr, nc, team)) break;   // blocked by friendly
     moves.push({ row: nr, col: nc });
@@ -65,19 +67,21 @@ function slide(
 // ─── Per-piece move generators ────────────────────────────────────────────────
 
 function rogueMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
+  const bRows = board.length;
+  const bCols = board[0]?.length ?? 8;
   const moves: Position[] = [];
   const { team, upgrades, position: { row, col } } = piece;
   const dir = team === 'player' ? -1 : 1;
-  const startRow = team === 'player' ? 6 : 1;
+  const startRow = team === 'player' ? bRows - 2 : 1;
   const opp: Team = team === 'player' ? 'enemy' : 'player';
 
   // Forward 1
   const fwd1 = row + dir;
-  if (inBounds(fwd1, col) && !isWall(board, fwd1, col) && !pieceAt(pieces, fwd1, col)) {
+  if (inBounds(fwd1, col, bRows, bCols) && !isWall(board, fwd1, col) && !pieceAt(pieces, fwd1, col)) {
     moves.push({ row: fwd1, col });
     // Forward 2 from starting row
     const fwd2 = row + 2 * dir;
-    if (row === startRow && inBounds(fwd2, col) && !isWall(board, fwd2, col) && !pieceAt(pieces, fwd2, col)) {
+    if (row === startRow && inBounds(fwd2, col, bRows, bCols) && !isWall(board, fwd2, col) && !pieceAt(pieces, fwd2, col)) {
       moves.push({ row: fwd2, col });
     }
   }
@@ -86,7 +90,7 @@ function rogueMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] 
   for (const dc of [-1, 1]) {
     const nr = row + dir;
     const nc = col + dc;
-    if (!inBounds(nr, nc) || isWall(board, nr, nc)) continue;
+    if (!inBounds(nr, nc, bRows, bCols) || isWall(board, nr, nc)) continue;
 
     if (occupiedBy(pieces, nr, nc, opp)) {
       moves.push({ row: nr, col: nc });
@@ -99,7 +103,9 @@ function rogueMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] 
   return moves;
 }
 
-function brawlerMoves(piece: Piece, pieces: Piece[], _board: Tile[][]): Position[] {
+function brawlerMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
+  const bRows = board.length;
+  const bCols = board[0]?.length ?? 8;
   const moves: Position[] = [];
   const { team, position: { row, col } } = piece;
   // Brawler leaps — walls don't block jumpers
@@ -108,7 +114,7 @@ function brawlerMoves(piece: Piece, pieces: Piece[], _board: Tile[][]): Position
   for (const [dr, dc] of OFFSETS) {
     const nr = row + dr;
     const nc = col + dc;
-    if (inBounds(nr, nc) && !occupiedBy(pieces, nr, nc, team)) {
+    if (inBounds(nr, nc, bRows, bCols) && !occupiedBy(pieces, nr, nc, team)) {
       moves.push({ row: nr, col: nc });
     }
   }
@@ -140,13 +146,15 @@ function witchMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] 
 }
 
 function heroMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
+  const bRows = board.length;
+  const bCols = board[0]?.length ?? 8;
   const moves: Position[] = [];
   const { team, position: { row, col } } = piece;
   const OFFSETS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
   for (const [dr, dc] of OFFSETS) {
     const nr = row + dr;
     const nc = col + dc;
-    if (inBounds(nr, nc) && !isWall(board, nr, nc) && !occupiedBy(pieces, nr, nc, team)) {
+    if (inBounds(nr, nc, bRows, bCols) && !isWall(board, nr, nc) && !occupiedBy(pieces, nr, nc, team)) {
       moves.push({ row: nr, col: nc });
     }
   }

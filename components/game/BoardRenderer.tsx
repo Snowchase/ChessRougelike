@@ -26,8 +26,7 @@ import { Piece, Position, BattleState, TileType } from '@/src/engine/types';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const BOARD_SIZE = Math.floor((SCREEN_WIDTH - 8) / 8) * 8; // fit 8 cells exactly
-const CELL = BOARD_SIZE / 8;
+const MAX_BOARD_PX = SCREEN_WIDTH - 8;
 
 const LIGHT_SQ = '#F0D9B5';
 const DARK_SQ  = '#B58863';
@@ -91,6 +90,13 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
     captureSquares,
   } = state;
 
+  // Dynamic board dimensions — default to 8×8 for backward compatibility
+  const numRows = state.rows ?? 8;
+  const numCols = state.cols ?? 8;
+  const CELL = Math.floor(MAX_BOARD_PX / Math.max(numRows, numCols));
+  const BOARD_WIDTH = CELL * numCols;
+  const BOARD_HEIGHT = CELL * numRows;
+
   const squareMap = useMemo(() => buildSquareMap(pieces), [pieces]);
 
   const selectableSet = useMemo(() => new Set(selectableSquares.map(posKey)), [selectableSquares]);
@@ -102,11 +108,11 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
     : null;
   const selectedKey = selectedPiece ? posKey(selectedPiece.position) : null;
 
-  const rows = Array.from({ length: 8 }, (_, i) => i);
-  const cols = Array.from({ length: 8 }, (_, i) => i);
+  const rows = Array.from({ length: numRows }, (_, i) => i);
+  const cols = Array.from({ length: numCols }, (_, i) => i);
 
   return (
-    <View style={styles.board}>
+    <View style={[styles.board, { width: BOARD_WIDTH, height: BOARD_HEIGHT }]}>
       {rows.map(row => (
         <View key={row} style={styles.row}>
           {cols.map(col => {
@@ -140,14 +146,22 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
               >
                 {/* Tile environment label (walls, water, lava) */}
                 {tileLabel !== '' && !piece && (
-                  <Text style={[styles.tileLabel, tileType === 'LAVA' && styles.lavaTileLabel]}>
+                  <Text style={[
+                    styles.tileLabel,
+                    { fontSize: CELL * 0.45 },
+                    tileType === 'LAVA' && styles.lavaTileLabel,
+                  ]}>
                     {tileLabel}
                   </Text>
                 )}
 
                 {/* Move dot */}
                 {isHighlighted && !piece && (
-                  <View style={styles.moveDot} />
+                  <View style={[styles.moveDot, {
+                    width: CELL * 0.3,
+                    height: CELL * 0.3,
+                    borderRadius: CELL * 0.15,
+                  }]} />
                 )}
 
                 {/* Capture overlay */}
@@ -160,6 +174,7 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
                   <Text
                     style={[
                       styles.pieceText,
+                      { fontSize: CELL * 0.38 },
                       piece.team === 'player' ? styles.playerPiece : styles.enemyPiece,
                       isPoisoned && styles.poisonedPiece,
                     ]}
@@ -187,8 +202,6 @@ export default function BoardRenderer({ state, onSquarePress }: BoardRendererPro
 
 const styles = StyleSheet.create({
   board: {
-    width: BOARD_SIZE,
-    height: BOARD_SIZE,
     borderWidth: 2,
     borderColor: '#5a3e1b',
     alignSelf: 'center',
@@ -214,7 +227,6 @@ const styles = StyleSheet.create({
     borderColor: '#FF4444',
   },
   tileLabel: {
-    fontSize: CELL * 0.45,
     color: 'rgba(255,255,255,0.35)',
     position: 'absolute',
   },
@@ -222,7 +234,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,120,0,0.5)',
   },
   pieceText: {
-    fontSize: CELL * 0.38,
     fontWeight: '800',
     textAlign: 'center',
     letterSpacing: -0.5,
@@ -243,9 +254,6 @@ const styles = StyleSheet.create({
     color: '#6B0AC9',
   },
   moveDot: {
-    width: CELL * 0.3,
-    height: CELL * 0.3,
-    borderRadius: CELL * 0.15,
     backgroundColor: 'rgba(30, 200, 30, 0.7)',
   },
   captureRing: {

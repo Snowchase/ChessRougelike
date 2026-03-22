@@ -47,6 +47,14 @@ const PHASE_LABEL: Record<string, string> = {
   battle_over:               'Battle Over',
 };
 
+const LEVEL_TYPE_LABEL: Record<string, string> = {
+  skirmish:  'SKIRMISH',
+  gauntlet:  'GAUNTLET',
+  corridor:  'CORRIDOR',
+  lava_pit:  'LAVA PIT',
+  boss:      'BOSS',
+};
+
 // ─── Initialiser ──────────────────────────────────────────────────────────────
 
 /**
@@ -233,6 +241,29 @@ export default function BattleScreen() {
         <BoardRenderer state={state} onSquarePress={handleSquarePress} />
       </TouchableOpacity>
 
+      {/* ── Level Type / Win Condition Banner ────────────────────────────── */}
+      {state.levelType && state.levelType !== 'skirmish' && (
+        <View style={[
+          styles.winConditionBanner,
+          state.levelType === 'gauntlet' && styles.gauntletBanner,
+          state.levelType === 'lava_pit' && styles.lavaBanner,
+          state.levelType === 'corridor' && styles.corridorBanner,
+          state.levelType === 'boss'     && styles.bossBanner,
+        ]}>
+          <Text style={styles.levelTypeTag}>
+            {LEVEL_TYPE_LABEL[state.levelType] ?? state.levelType.toUpperCase()}
+          </Text>
+          {state.winCondition?.type === 'survive_turns' && (
+            <Text style={styles.winConditionText}>
+              Survive {state.gauntletTurnsLeft > 0 ? state.gauntletTurnsLeft : 0} more turn{state.gauntletTurnsLeft !== 1 ? 's' : ''}
+            </Text>
+          )}
+          {state.winCondition?.type === 'eliminate_all' && state.levelType !== 'skirmish' && (
+            <Text style={styles.winConditionText}>Eliminate all enemies</Text>
+          )}
+        </View>
+      )}
+
       {/* ── Enemy Intent Banner ──────────────────────────────────────────── */}
       <View style={styles.intentBanner}>
         <Text style={styles.intentLabel}>Enemy next: </Text>
@@ -387,6 +418,32 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontSize: 13,
     fontWeight: '600',
+  },
+  winConditionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: '#1a1a2e',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  gauntletBanner: { backgroundColor: '#2a1a00' },
+  lavaBanner:     { backgroundColor: '#2a0d00' },
+  corridorBanner: { backgroundColor: '#0d1a2a' },
+  bossBanner:     { backgroundColor: '#2a0010' },
+  levelTypeTag: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  winConditionText: {
+    color: '#aaa',
+    fontSize: 10,
+    flex: 1,
   },
   intentBanner: {
     flexDirection: 'row',

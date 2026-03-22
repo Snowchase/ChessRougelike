@@ -34,6 +34,21 @@ export interface Position {
   col: number;
 }
 
+// ─── Level / Board Layout ─────────────────────────────────────────────────────
+
+export type LevelType = 'skirmish' | 'gauntlet' | 'corridor' | 'lava_pit' | 'boss';
+
+export interface BoardLayout {
+  rows: number;
+  cols: number;
+  /** Per-cell overrides — WALL, LAVA, WATER, etc. */
+  tiles?: Array<{ row: number; col: number; type: TileType }>;
+}
+
+export type WinCondition =
+  | { type: 'eliminate_all' }
+  | { type: 'survive_turns'; turns: number };
+
 // ─── Tile ─────────────────────────────────────────────────────────────────────
 
 export type TileType = 'FLOOR' | 'WALL' | 'WATER' | 'BREAKABLE_WALL' | 'LAVA';
@@ -115,7 +130,14 @@ export type BattlePhase =
 
 export interface BattleState {
   pieces: Piece[];
-  board: Tile[][];   // 8×8 grid of environment tiles
+  board: Tile[][];   // grid of environment tiles (dimensions: rows × cols)
+
+  // Board dimensions & level identity
+  rows: number;
+  cols: number;
+  levelType: LevelType;
+  winCondition: WinCondition;
+  gauntletTurnsLeft: number;  // countdown for survive_turns; -1 otherwise
 
   // Card system
   playerHand: MoveCard[];
