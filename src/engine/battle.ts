@@ -126,6 +126,7 @@ export function createInitialBattleState(): BattleState {
     selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
+    extraTurnPieceId: null,
     winner: null,
     gold: 0,
     log: ['The dungeon awaits. Draw a card and move your party.'],
@@ -220,6 +221,7 @@ export function createBattleFromRun(
     selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
+    extraTurnPieceId: null,
     winner: null,
     gold: 0,
     log: [`${formation.name} — Battle begins!`],
@@ -235,6 +237,7 @@ export type BattleAction =
   | { type: 'SELECT_PIECE';       pieceId: string }
   | { type: 'SELECT_DESTINATION'; position: Position }
   | { type: 'ENEMY_MOVE' }
+  | { type: 'SKIP_EXTRA_TURN' }
   | { type: 'RESTART' };
 
 // ─── Helper: check win/loss ───────────────────────────────────────────────────
@@ -466,6 +469,7 @@ function executeAbility(
     selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
+    extraTurnPieceId: null,
     phase: s.phase === 'battle_over' ? 'battle_over' : 'enemy_turn',
   };
 }
@@ -504,6 +508,7 @@ function executeRepulse(state: BattleState, piece: Piece, card: MoveCard): Battl
     selectableSquares: [],
     highlightedSquares: [],
     captureSquares: [],
+    extraTurnPieceId: null,
     phase: s.phase === 'battle_over' ? 'battle_over' : 'enemy_turn',
   };
 }
@@ -532,8 +537,8 @@ function executePlayerMove(
 ): BattleState {
   let s = { ...state };
 
-  // 1. Emit onCardPlay
-  s = dispatchEvent(s, { type: EVENTS.ON_CARD_PLAY, pieceId: piece.id, cardId: card.id });
+  // 1. Emit onCardPlay (include card object so relics can inspect tags)
+  s = dispatchEvent(s, { type: EVENTS.ON_CARD_PLAY, pieceId: piece.id, cardId: card.id, card });
 
   // 2. Check for capture
   const capturedPiece = pieceAt(s.pieces, destination.row, destination.col);
@@ -646,7 +651,17 @@ function executePlayerMove(
     };
   }
 
-  // 10. Transition to enemy turn
+  // 10. Transition to enemy turn, or grant SIEGE Guardian a bonus action
+  // (only on the first capture of a turn — extra turns don't chain)
+  if (s.extraTurnPieceId !== null) {
+    // This was the bonus action — consume it and end the turn
+    return { ...s, phase: 'enemy_turn', extraTurnPieceId: null };
+  }
+  const earnsSiege = isCapture && piece.type === 'GUARDIAN' && piece.upgrades.includes('SIEGE');
+  if (earnsSiege) {
+    return { ...s, phase: 'player_select_card', extraTurnPieceId: piece.id,
+      log: [...s.log, 'SIEGE: Guardian earns a bonus action!'] };
+  }
   return { ...s, phase: 'enemy_turn' };
 }
 
@@ -746,6 +761,12 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       if (!allowedPhases.includes(state.phase)) return state;
       const card = state.playerHand.find(c => c.id === action.cardId);
       if (!card) return state;
+
+      // SIEGE bonus turn: only allow cards for the piece that earned the bonus
+      if (state.extraTurnPieceId !== null) {
+        const extraPiece = state.pieces.find(p => p.id === state.extraTurnPieceId);
+        if (!extraPiece || card.pieceType !== extraPiece.type) return state;
+      }
 
       // Highlight all player pieces that can be moved with this card
       const selectable = state.pieces
@@ -879,6 +900,12 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
       }
 
       return executePlayerMove(state, piece, action.position, card);
+    }
+
+    // ── Skip SIEGE bonus action ───────────────────────────────────────────────
+    case 'SKIP_EXTRA_TURN': {
+      if (state.extraTurnPieceId === null) return state;
+      return { ...state, extraTurnPieceId: null, phase: 'enemy_turn' };
     }
 
     // ── Enemy moves ───────────────────────────────────────────────────────────

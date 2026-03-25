@@ -194,6 +194,10 @@ export default function BattleScreen() {
     }
   }, [run]);
 
+  const handleSkipExtraTurn = useCallback(() => {
+    dispatch({ type: 'SKIP_EXTRA_TURN' });
+  }, []);
+
   // ── Derived values ────────────────────────────────────────────────────────
 
   const hpPercent = state.maxPlayerHp > 0 ? state.playerHp / state.maxPlayerHp : 0;
@@ -291,6 +295,16 @@ export default function BattleScreen() {
         <Text style={styles.intentLabel}>Enemy next: </Text>
         <Text style={styles.intentText}>{state.enemyIntent}</Text>
       </View>
+
+      {/* ── SIEGE Bonus Turn Banner ──────────────────────────────────────── */}
+      {state.extraTurnPieceId !== null && (
+        <View style={styles.siegeBar}>
+          <Text style={styles.siegeBarText}>⚔ SIEGE BONUS — Play a Guardian card</Text>
+          <TouchableOpacity style={styles.skipBtn} onPress={handleSkipExtraTurn}>
+            <Text style={styles.skipBtnText}>Skip</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Card Hand ───────────────────────────────────────────────────── */}
       {!isBattleOver && (
@@ -560,5 +574,31 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 10,
     fontStyle: 'italic',
+  },
+  siegeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1a2a00',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#4a7a00',
+  },
+  siegeBarText: {
+    color: '#a0e040',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  skipBtn: {
+    backgroundColor: '#333',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  skipBtnText: {
+    color: '#aaa',
+    fontSize: 11,
   },
 });

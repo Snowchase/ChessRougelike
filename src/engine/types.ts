@@ -18,6 +18,17 @@ export type CardEffect =
   | 'REPULSE';        // instant AoE — push ALL adjacent enemies away
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
+export type CardTag =
+  | 'FORWARD'      // rogue/hero forward step
+  | 'DIAGONAL'     // ranger diagonal attacks
+  | 'LEAP'         // brawler knight jumps
+  | 'CHAIN'        // follow-up second action
+  | 'SWEEP'        // hits multiple squares at once
+  | 'SACRIFICE'    // costs HP
+  | 'DISPLACEMENT' // repositions enemy without capturing
+  | 'MARCH'        // guardian straight-line slide
+  | 'ABILITY';     // non-movement card
+
 export type EventType =
   | 'onCapture'
   | 'onCardPlay'
@@ -83,6 +94,7 @@ export interface MoveCard {
   description: string;
   hpCost?: number;       // for Gambit-style cards
   abilityPower?: number; // for ability cards: push distance, pull distance, teleport range
+  tags?: CardTag[];      // synergy tags for relic interactions
 }
 
 // ─── Relics ───────────────────────────────────────────────────────────────────
@@ -103,6 +115,7 @@ export interface GameEvent {
   fromPosition?: Position;
   toPosition?: Position;
   cardId?: string;
+  card?: MoveCard;            // full card object (for onCardPlay tag-based relics)
 }
 
 // ─── Enemy AI ─────────────────────────────────────────────────────────────────
@@ -167,6 +180,9 @@ export interface BattleState {
   selectableSquares: Position[];    // positions of pieces that can be moved with the selected card
   highlightedSquares: Position[];   // valid move destinations
   captureSquares: Position[];       // valid capture destinations
+
+  // Upgrade bonus actions
+  extraTurnPieceId: string | null; // SIEGE Guardian earns one bonus action after capture
 
   // Outcome
   winner: Team | null;

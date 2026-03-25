@@ -16,6 +16,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'NORMAL',
     rarity: 'common',
     description: 'Step forward 1–2.',
+    tags: ['FORWARD'],
   },
   {
     id: 'shadow_strike',
@@ -25,6 +26,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'CHAIN',
     rarity: 'uncommon',
     description: 'Step fwd, then hit diag.',
+    tags: ['FORWARD', 'CHAIN'],
   },
 
   // ── Brawler Cards ──
@@ -36,6 +38,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'NORMAL',
     rarity: 'common',
     description: 'L-leap; hit on land.',
+    tags: ['LEAP'],
   },
   {
     id: 'bull_rush',
@@ -45,6 +48,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'CHAIN',
     rarity: 'uncommon',
     description: 'L-leap; chain hit after.',
+    tags: ['LEAP', 'CHAIN'],
   },
 
   // ── Ranger Cards ──
@@ -56,6 +60,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'DIAGONAL_SWEEP',
     rarity: 'common',
     description: 'Diag sweep; hit all.',
+    tags: ['DIAGONAL', 'SWEEP'],
   },
   {
     id: 'poison_arrow',
@@ -65,6 +70,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'DIAGONAL_SWEEP',
     rarity: 'uncommon',
     description: 'Diag; poison foes hit.',
+    tags: ['DIAGONAL', 'SWEEP'],
   },
 
   // ── Guardian Cards ──
@@ -76,6 +82,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'CASTLE',
     rarity: 'common',
     description: 'March + swap an ally.',
+    tags: ['MARCH'],
   },
   {
     id: 'battering_ram',
@@ -85,6 +92,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'CASTLE',
     rarity: 'uncommon',
     description: 'Thrust; keep your turn.',
+    tags: ['MARCH'],
   },
 
   // ── Witch Cards ──
@@ -97,6 +105,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'rare',
     description: 'Any direction. −2 HP.',
     hpCost: 2,
+    tags: ['SACRIFICE'],
   },
   {
     id: 'blood_ritual',
@@ -107,6 +116,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'rare',
     description: 'Massive hit. −5 HP.',
     hpCost: 5,
+    tags: ['SACRIFICE'],
   },
 
   // ── Hero Cards ──
@@ -118,6 +128,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'NORMAL',
     rarity: 'common',
     description: 'One step, any dir.',
+    tags: ['FORWARD'],
   },
 
   // ── Ability Cards ──────────────────────────────────────────────────────────
@@ -132,6 +143,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'uncommon',
     description: 'Push an adjacent enemy 2 squares away.',
     abilityPower: 2,
+    tags: ['LEAP', 'ABILITY', 'DISPLACEMENT'],
   },
   {
     id: 'stand_fast',
@@ -142,6 +154,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'uncommon',
     description: 'Slam an adjacent enemy 3 squares away.',
     abilityPower: 3,
+    tags: ['MARCH', 'ABILITY', 'DISPLACEMENT'],
   },
   {
     id: 'smoke_step',
@@ -152,6 +165,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'common',
     description: 'Vanish and reappear within 3 tiles.',
     abilityPower: 3,
+    tags: ['FORWARD', 'ABILITY'],
   },
   {
     id: 'switcheroo',
@@ -161,6 +175,7 @@ export const ALL_CARDS: MoveCard[] = [
     effect: 'SWAP_ALLY',
     rarity: 'rare',
     description: 'Swap positions with any ally.',
+    tags: ['ABILITY'],
   },
   {
     id: 'lasso',
@@ -171,6 +186,7 @@ export const ALL_CARDS: MoveCard[] = [
     rarity: 'uncommon',
     description: 'Yank any enemy in sight 2 steps closer.',
     abilityPower: 2,
+    tags: ['DIAGONAL', 'ABILITY', 'DISPLACEMENT'],
   },
   {
     id: 'arcane_burst',
@@ -182,6 +198,7 @@ export const ALL_CARDS: MoveCard[] = [
     description: 'Push ALL adjacent enemies 2 sq. -2 HP.',
     hpCost: 2,
     abilityPower: 2,
+    tags: ['SACRIFICE', 'ABILITY', 'DISPLACEMENT'],
   },
 ];
 

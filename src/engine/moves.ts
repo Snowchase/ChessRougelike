@@ -107,11 +107,16 @@ function brawlerMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[
   const bRows = board.length;
   const bCols = board[0]?.length ?? 8;
   const moves: Position[] = [];
-  const { team, position: { row, col } } = piece;
+  const { team, upgrades, position: { row, col } } = piece;
   // Brawler leaps — walls don't block jumpers
-  const OFFSETS = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+  const BASE_OFFSETS: [number, number][] = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+  // NIGHTMARE: adds extended L-jumps (±3,±1) and (±1,±3) for greater reach
+  const NIGHTMARE_OFFSETS: [number, number][] = [[-3, -1], [-3, 1], [-1, -3], [-1, 3], [1, -3], [1, 3], [3, -1], [3, 1]];
+  const offsets = upgrades.includes('NIGHTMARE')
+    ? [...BASE_OFFSETS, ...NIGHTMARE_OFFSETS]
+    : BASE_OFFSETS;
 
-  for (const [dr, dc] of OFFSETS) {
+  for (const [dr, dc] of offsets) {
     const nr = row + dr;
     const nc = col + dc;
     if (inBounds(nr, nc, bRows, bCols) && !occupiedBy(pieces, nr, nc, team)) {
@@ -122,12 +127,21 @@ function brawlerMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[
 }
 
 function rangerMoves(piece: Piece, pieces: Piece[], board: Tile[][]): Position[] {
-  const { team, position: { row, col } } = piece;
-  return [
+  const { team, upgrades, position: { row, col } } = piece;
+  const diagonals = [
     ...slide(pieces, board, row, col, -1, -1, team),
     ...slide(pieces, board, row, col, -1,  1, team),
     ...slide(pieces, board, row, col,  1, -1, team),
     ...slide(pieces, board, row, col,  1,  1, team),
+  ];
+  if (!upgrades.includes('DARK_RANGER')) return diagonals;
+  // DARK_RANGER: also slides orthogonally (effectively bishop → queen)
+  return [
+    ...diagonals,
+    ...slide(pieces, board, row, col, -1, 0, team),
+    ...slide(pieces, board, row, col,  1, 0, team),
+    ...slide(pieces, board, row, col,  0, -1, team),
+    ...slide(pieces, board, row, col,  0,  1, team),
   ];
 }
 
