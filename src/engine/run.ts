@@ -427,6 +427,7 @@ export type RunAction =
   | { type: 'ADD_RELIC';        relicId: string }
   | { type: 'UPGRADE_PIECE';    pieceId: string; upgrade: UpgradeType }
   | { type: 'SPEND_GOLD';       amount: number }
+  | { type: 'GAIN_GOLD';        amount: number }
   | { type: 'HEAL';             amount: number }
   | { type: 'END_RUN' };
 
@@ -478,6 +479,9 @@ export function runReducer(state: RunState | null, action: RunAction): RunState 
 
     case 'SPEND_GOLD':
       return { ...state, gold: Math.max(0, state.gold - action.amount) };
+
+    case 'GAIN_GOLD':
+      return { ...state, gold: state.gold + action.amount };
 
     case 'HEAL':
       return {

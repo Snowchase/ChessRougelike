@@ -100,8 +100,7 @@ export default function MapScreen() {
         dispatch({ type: 'HEAL', amount: 5 });
         break;
       case 'event':
-        // Placeholder — just heal a little for now
-        dispatch({ type: 'HEAL', amount: 2 });
+        router.push('/event');
         break;
     }
   };

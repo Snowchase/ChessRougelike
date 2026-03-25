@@ -597,10 +597,11 @@ function executePlayerMove(
       toPosition: destination,
     });
 
-    // Emit onPieceDeath for the captured piece
+    // Emit onPieceDeath for the captured piece (always enemy in player move)
     s = dispatchEvent(s, {
       type: EVENTS.ON_PIECE_DEATH,
       pieceId: capturedPiece.id,
+      team: 'enemy',
     });
   } else {
     // No capture — reset combo
@@ -702,7 +703,7 @@ function resolveEnemyTurn(state: BattleState): BattleState {
   if (capturedPieceId) {
     const captured = state.pieces.find(p => p.id === capturedPieceId);
     s = { ...s, log: [...s.log, `Enemy defeated your ${captured?.type ?? 'ally'}!`] };
-    s = dispatchEvent(s, { type: EVENTS.ON_PIECE_DEATH, pieceId: capturedPieceId });
+    s = dispatchEvent(s, { type: EVENTS.ON_PIECE_DEATH, pieceId: capturedPieceId, team: 'player' });
   }
 
   // Emit onTurnEnd

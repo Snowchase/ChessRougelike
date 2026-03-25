@@ -116,6 +116,7 @@ export interface GameEvent {
   toPosition?: Position;
   cardId?: string;
   card?: MoveCard;            // full card object (for onCardPlay tag-based relics)
+  team?: Team;                // team of the piece referenced by pieceId (for onPieceDeath)
 }
 
 // ─── Enemy AI ─────────────────────────────────────────────────────────────────
