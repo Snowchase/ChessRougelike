@@ -55,6 +55,22 @@ const LEVEL_TYPE_LABEL: Record<string, string> = {
   boss:      'BOSS',
 };
 
+const LEVEL_OBJECTIVE: Record<string, string> = {
+  skirmish:  'Eliminate all enemies',
+  gauntlet:  'Survive the onslaught — don\'t let your Hero fall',
+  corridor:  'Eliminate all enemies in the narrow passage',
+  lava_pit:  'Eliminate all enemies — avoid the lava channels',
+  boss:      'Defeat the boss and all remaining forces',
+};
+
+const BANNER_COLOR: Record<string, string> = {
+  skirmish:  '#111128',
+  gauntlet:  '#2a1600',
+  corridor:  '#0b1828',
+  lava_pit:  '#280a00',
+  boss:      '#280012',
+};
+
 // ─── Initialiser ──────────────────────────────────────────────────────────────
 
 /**
@@ -213,6 +229,14 @@ export default function BattleScreen() {
           <Text style={styles.phaseText}>{phaseLabel}</Text>
         </View>
         <View style={styles.pieceCounts}>
+          {state.winCondition?.type === 'survive_turns' && (
+            <Text style={[
+              styles.gauntletChip,
+              state.gauntletTurnsLeft <= 1 && styles.gauntletChipUrgent,
+            ]}>
+              ⏱ {Math.max(0, state.gauntletTurnsLeft)} left
+            </Text>
+          )}
           <Text style={styles.countText}>Party ×{playerCount}</Text>
           <Text style={styles.countTextEnemy}>Enemy ×{enemyCount}</Text>
         </View>
@@ -233,28 +257,25 @@ export default function BattleScreen() {
       {/* ── Relics ──────────────────────────────────────────────────────── */}
       <RelicDisplay relics={state.relics} />
 
-      {/* ── Level Type / Win Condition Banner (above board) ──────────────── */}
-      {state.levelType && state.levelType !== 'skirmish' && (
-        <View style={[
-          styles.winConditionBanner,
-          state.levelType === 'gauntlet' && styles.gauntletBanner,
-          state.levelType === 'lava_pit' && styles.lavaBanner,
-          state.levelType === 'corridor' && styles.corridorBanner,
-          state.levelType === 'boss'     && styles.bossBanner,
+      {/* ── Objective Banner (always visible above board) ────────────────── */}
+      <View style={[
+        styles.winConditionBanner,
+        { backgroundColor: BANNER_COLOR[state.levelType] ?? BANNER_COLOR.skirmish },
+      ]}>
+        <Text style={[
+          styles.levelTypeTag,
+          state.levelType === 'gauntlet' && { color: '#FFB347' },
+          state.levelType === 'lava_pit' && { color: '#FF6633' },
+          state.levelType === 'boss'     && { color: '#FF4466' },
         ]}>
-          <Text style={styles.levelTypeTag}>
-            {LEVEL_TYPE_LABEL[state.levelType] ?? state.levelType.toUpperCase()}
-          </Text>
-          {state.winCondition?.type === 'survive_turns' && (
-            <Text style={styles.winConditionText}>
-              Survive {state.gauntletTurnsLeft > 0 ? state.gauntletTurnsLeft : 0} more turn{state.gauntletTurnsLeft !== 1 ? 's' : ''}
-            </Text>
-          )}
-          {state.winCondition?.type === 'eliminate_all' && state.levelType !== 'skirmish' && (
-            <Text style={styles.winConditionText}>Eliminate all enemies</Text>
-          )}
-        </View>
-      )}
+          {LEVEL_TYPE_LABEL[state.levelType] ?? 'BATTLE'}
+        </Text>
+        <Text style={styles.winConditionText} numberOfLines={1}>
+          {state.winCondition?.type === 'survive_turns'
+            ? `Survive ${Math.max(0, state.gauntletTurnsLeft)} more turn${state.gauntletTurnsLeft !== 1 ? 's' : ''} without losing your Hero`
+            : LEVEL_OBJECTIVE[state.levelType] ?? 'Eliminate all enemies'}
+        </Text>
+      </View>
 
       {/* ── Board ───────────────────────────────────────────────────────── */}
       <TouchableOpacity
@@ -419,31 +440,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  gauntletChip: {
+    color: '#FFB347',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  gauntletChipUrgent: {
+    color: '#FF4444',
+  },
   winConditionBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 10,
-    paddingVertical: 3,
-    backgroundColor: '#1a1a2e',
+    paddingVertical: 4,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#2a2a3a',
   },
-  gauntletBanner: { backgroundColor: '#2a1a00' },
-  lavaBanner:     { backgroundColor: '#2a0d00' },
-  corridorBanner: { backgroundColor: '#0d1a2a' },
-  bossBanner:     { backgroundColor: '#2a0010' },
   levelTypeTag: {
     color: '#FFD700',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+    minWidth: 62,
   },
   winConditionText: {
-    color: '#aaa',
+    color: '#999',
     fontSize: 10,
     flex: 1,
+    fontStyle: 'italic',
   },
   intentBanner: {
     flexDirection: 'row',

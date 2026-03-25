@@ -130,6 +130,7 @@ export default function MapScreen() {
                 const isVisited   = run.visitedNodeIds.includes(node.id);
                 const isCurrent   = run.currentNodeId === node.id;
                 const isReachable = reachable.includes(node.id);
+                const isLocked    = !isReachable && !isVisited && !isCurrent;
                 const color       = NODE_COLOR[node.type];
 
                 return (
@@ -137,17 +138,23 @@ export default function MapScreen() {
                     key={node.id}
                     style={[
                       styles.nodeBtn,
-                      { borderColor: color },
+                      { borderColor: isLocked ? '#252530' : color },
                       isVisited   && styles.nodeBtnVisited,
                       isCurrent   && styles.nodeBtnCurrent,
                       isReachable && styles.nodeBtnReachable,
+                      isLocked    && styles.nodeBtnLocked,
                     ]}
                     onPress={() => handleNodePress(node)}
                     activeOpacity={isReachable ? 0.75 : 1}
                     disabled={!isReachable}
                   >
-                    <Text style={styles.nodeIcon}>{NODE_ICON[node.type]}</Text>
-                    <Text style={[styles.nodeLabel, { color: isVisited ? '#555' : color }]}>
+                    <Text style={[styles.nodeIcon, isLocked && styles.nodeIconLocked]}>
+                      {NODE_ICON[node.type]}
+                    </Text>
+                    <Text style={[
+                      styles.nodeLabel,
+                      { color: isVisited ? '#444' : isLocked ? '#333' : color },
+                    ]}>
                       {NODE_LABEL[node.type]}
                     </Text>
                     {isCurrent && <Text style={styles.currentMarker}>●</Text>}
@@ -252,8 +259,8 @@ const styles = StyleSheet.create({
   },
   nodeBtnVisited: {
     backgroundColor: '#0d0d18',
-    borderColor: '#333',
-    opacity: 0.5,
+    borderColor: '#222',
+    opacity: 0.45,
   },
   nodeBtnCurrent: {
     backgroundColor: '#1a1a3a',
@@ -265,8 +272,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  nodeBtnLocked: {
+    backgroundColor: '#0a0a10',
+    opacity: 0.3,
+  },
   nodeIcon: {
     fontSize: 26,
+  },
+  nodeIconLocked: {
+    opacity: 0.4,
   },
   nodeLabel: {
     fontSize: 10,
