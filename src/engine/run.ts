@@ -422,7 +422,7 @@ export function generateShopInventory(playerPieces: PieceConfig[]): ShopItem[] {
 export type RunAction =
   | { type: 'START_RUN';        startingClass: StartingClass }
   | { type: 'VISIT_NODE';       nodeId: string }
-  | { type: 'COMPLETE_BATTLE';  goldEarned: number; hpAfterBattle: number }
+  | { type: 'COMPLETE_BATTLE';  goldEarned: number; hpAfterBattle: number; relics: RelicInstance[] }
   | { type: 'ADD_CARD';         card: MoveCard }
   | { type: 'ADD_RELIC';        relicId: string }
   | { type: 'UPGRADE_PIECE';    pieceId: string; upgrade: UpgradeType }
@@ -452,6 +452,7 @@ export function runReducer(state: RunState | null, action: RunAction): RunState 
         gold: state.gold + action.goldEarned,
         playerHp: action.hpAfterBattle,
         battlesWon: state.battlesWon + 1,
+        relics: action.relics,
       };
 
     case 'ADD_CARD':

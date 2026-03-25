@@ -139,6 +139,7 @@ export default function BattleScreen() {
           type: 'COMPLETE_BATTLE',
           goldEarned: state.gold,
           hpAfterBattle: state.playerHp,
+          relics: state.relics,
         });
       }
       // Navigate to reward screen after a short pause

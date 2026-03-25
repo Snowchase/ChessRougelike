@@ -23,13 +23,17 @@ export const EVENTS = {
  * Returns the updated BattleState.
  */
 export function dispatchEvent(state: BattleState, event: GameEvent): BattleState {
-  let current = { ...state };
+  // Deep-copy each relic instance so counter mutations stay isolated from the
+  // previous state reference (preserves immutability across dispatches).
+  let current: BattleState = {
+    ...state,
+    relics: state.relics.map(r => ({ ...r })),
+  };
 
   for (const relicInstance of current.relics) {
     const def = RELIC_DEFINITIONS.find(r => r.id === relicInstance.relicId);
     if (!def || def.trigger !== event.type) continue;
 
-    // Pass relicInstance by reference so the apply fn can mutate counter
     const changes = def.apply(current, event, relicInstance);
     current = { ...current, ...changes };
   }
