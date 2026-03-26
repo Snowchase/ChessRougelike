@@ -83,8 +83,7 @@ export default function RewardScreen() {
 
   const handleSkipCard = () => {
     // Skipping the card draft grants 10 bonus gold as compensation.
-    // SPEND_GOLD with a negative amount adds gold: max(0, gold - (-10)) = gold + 10.
-    dispatch({ type: 'SPEND_GOLD', amount: -10 });
+    dispatch({ type: 'GAIN_GOLD', amount: 10 });
     proceed();
   };
 

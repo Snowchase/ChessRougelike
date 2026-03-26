@@ -109,7 +109,7 @@ export default function MapScreen() {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/')}>
+        <TouchableOpacity style={styles.menuBtn} onPress={() => router.replace('/')}>
           <Text style={styles.menuBtnText}>☰ Menu</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Act {run.currentAct} — The Dungeon</Text>
